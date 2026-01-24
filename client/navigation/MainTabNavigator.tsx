@@ -75,7 +75,7 @@ export default function MainTabNavigator() {
         name="GamesTab"
         component={GamesStackNavigator}
         options={{
-          title: t('games'),
+          title: t('gamesTab'),
           tabBarIcon: ({ color, size }) => (
             <Feather name="grid" size={size} color={color} />
           ),
@@ -85,7 +85,7 @@ export default function MainTabNavigator() {
         name="MomentsTab"
         component={MomentsStackNavigator}
         options={{
-          title: t('moments'),
+          title: t('momentsTab'),
           tabBarIcon: ({ color, size }) => (
             <Feather name="heart" size={size} color={color} />
           ),
@@ -95,7 +95,7 @@ export default function MainTabNavigator() {
         name="FamilyTab"
         component={FamilyStackNavigator}
         options={{
-          title: t('family'),
+          title: t('familyTab'),
           tabBarIcon: ({ color, size }) => (
             <Feather name="users" size={size} color={color} />
           ),
@@ -105,7 +105,7 @@ export default function MainTabNavigator() {
         name="ProfileTab"
         component={ProfileStackNavigator}
         options={{
-          title: t('profile'),
+          title: t('profileTab'),
           tabBarIcon: ({ color, size }) => (
             <Feather name="user" size={size} color={color} />
           ),

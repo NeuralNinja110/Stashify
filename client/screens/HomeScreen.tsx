@@ -179,7 +179,7 @@ export default function HomeScreen() {
             >
               <Feather name="grid" size={32} color={theme.primary} />
               <ThemedText type="small" style={styles.actionText}>
-                {t('games')}
+                {t('gamesTab')}
               </ThemedText>
             </Pressable>
             <Pressable
@@ -192,7 +192,7 @@ export default function HomeScreen() {
             >
               <Feather name="heart" size={32} color={theme.primary} />
               <ThemedText type="small" style={styles.actionText}>
-                {t('moments')}
+                {t('momentsTab')}
               </ThemedText>
             </Pressable>
             <Pressable
@@ -205,7 +205,7 @@ export default function HomeScreen() {
             >
               <Feather name="users" size={32} color={theme.primary} />
               <ThemedText type="small" style={styles.actionText}>
-                {t('family')}
+                {t('familyTab')}
               </ThemedText>
             </Pressable>
             <Pressable

@@ -106,7 +106,7 @@ export default function GamesScreen() {
       >
         <Animated.View entering={FadeInDown.delay(100).duration(400)}>
           <ThemedText type="h2" style={styles.title}>
-            {t('games')}
+            {t('gamesTab')}
           </ThemedText>
           <ThemedText
             type="body"
