@@ -2,27 +2,26 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 
-import HomeScreen from '@/screens/HomeScreen';
-import { HeaderTitle } from '@/components/HeaderTitle';
+import GamesScreen from '@/screens/GamesScreen';
 import { useScreenOptions } from '@/hooks/useScreenOptions';
 
-export type HomeStackParamList = {
-  Home: undefined;
+export type GamesStackParamList = {
+  Games: undefined;
 };
 
-const Stack = createNativeStackNavigator<HomeStackParamList>();
+const Stack = createNativeStackNavigator<GamesStackParamList>();
 
-export default function HomeStackNavigator() {
+export default function GamesStackNavigator() {
   const screenOptions = useScreenOptions();
   const { t } = useTranslation();
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen
-        name="Home"
-        component={HomeScreen}
+        name="Games"
+        component={GamesScreen}
         options={{
-          headerTitle: () => <HeaderTitle title={t('appName')} />,
+          title: t('games'),
         }}
       />
     </Stack.Navigator>

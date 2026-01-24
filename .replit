@@ -22,6 +22,7 @@ PORT = "5000"
 
 [agent]
 stack = "EXPO"
+integrations = ["javascript_gemini:1.0.0"]
 
 [workflows]
 runButton = "Project"
@@ -68,3 +69,10 @@ task = "shell.exec"
 args = "npm run expo:dev"
 waitForPort = 8081
 ensurePreviewReachable = "/status"
+
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_SUPABASE_URL = "https://lddwaujekdbxaeytlzhy.supabase.co"
+EXPO_PUBLIC_SUPABASE_KEY = "sb_publishable_S23KfTY8ei8m4Gm9rN4rxg_qmk-FX0l"
+GEMINI_API_KEY = "AIzaSyD4VzNKUjt9sZdkWHLv-oWGBkI540T7fNI"

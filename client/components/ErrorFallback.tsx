@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { reloadAppAsync } from "expo";
+import React, { useState } from 'react';
+import { reloadAppAsync } from 'expo';
 import {
   StyleSheet,
   View,
@@ -7,12 +7,15 @@ import {
   ScrollView,
   Text,
   Modal,
-} from "react-native";
-import { Feather } from "@expo/vector-icons";
-import { ThemedView } from "@/components/ThemedView";
-import { ThemedText } from "@/components/ThemedText";
-import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Fonts } from "@/constants/theme";
+  Image,
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ThemedView } from '@/components/ThemedView';
+import { ThemedText } from '@/components/ThemedText';
+import { Colors, Spacing, BorderRadius, Fonts } from '@/constants/theme';
+
+const splashIcon = require('../../assets/images/splash-icon.png');
 
 export type ErrorFallbackProps = {
   error: Error;
@@ -20,14 +23,16 @@ export type ErrorFallbackProps = {
 };
 
 export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
-  const { theme } = useTheme();
+  const theme = Colors.light;
+  const insets = useSafeAreaInsets();
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const handleRestart = async () => {
     try {
+      resetError();
       await reloadAppAsync();
     } catch (restartError) {
-      console.error("Failed to restart app:", restartError);
+      console.error('Failed to restart app:', restartError);
       resetError();
     }
   };
@@ -41,7 +46,16 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.backgroundRoot,
+          paddingTop: insets.top + Spacing['4xl'],
+          paddingBottom: insets.bottom + Spacing['2xl'],
+        },
+      ]}
+    >
       {__DEV__ ? (
         <Pressable
           onPress={() => setIsModalVisible(true)}
@@ -58,31 +72,25 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
       ) : null}
 
       <View style={styles.content}>
-        <ThemedText type="h1" style={styles.title}>
-          Something went wrong
-        </ThemedText>
-
-        <ThemedText type="body" style={styles.message}>
-          Please reload the app to continue.
-        </ThemedText>
-
+        <Image source={splashIcon} style={styles.image} resizeMode="contain" />
+        <Text style={[styles.title, { color: theme.text }]}>
+          Oops! Something went wrong
+        </Text>
+        <Text style={[styles.message, { color: theme.textSecondary }]}>
+          Stashify encountered an unexpected error. Don't worry, your memories are safe!
+        </Text>
         <Pressable
           onPress={handleRestart}
           style={({ pressed }) => [
             styles.button,
             {
-              backgroundColor: theme.link,
+              backgroundColor: theme.primary,
               opacity: pressed ? 0.9 : 1,
               transform: [{ scale: pressed ? 0.98 : 1 }],
             },
           ]}
         >
-          <ThemedText
-            type="body"
-            style={[styles.buttonText, { color: theme.buttonText }]}
-          >
-            Try Again
-          </ThemedText>
+          <Text style={styles.buttonText}>Let's Try Again</Text>
         </Pressable>
       </View>
 
@@ -94,11 +102,21 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           onRequestClose={() => setIsModalVisible(false)}
         >
           <View style={styles.modalOverlay}>
-            <ThemedView style={styles.modalContainer}>
-              <View style={styles.modalHeader}>
-                <ThemedText type="h2" style={styles.modalTitle}>
+            <View
+              style={[
+                styles.modalContainer,
+                { backgroundColor: theme.backgroundRoot },
+              ]}
+            >
+              <View
+                style={[
+                  styles.modalHeader,
+                  { borderBottomColor: theme.border },
+                ]}
+              >
+                <Text style={[styles.modalTitle, { color: theme.text }]}>
                   Error Details
-                </ThemedText>
+                </Text>
                 <Pressable
                   onPress={() => setIsModalVisible(false)}
                   style={({ pressed }) => [
@@ -109,7 +127,6 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                   <Feather name="x" size={24} color={theme.text} />
                 </Pressable>
               </View>
-
               <ScrollView
                 style={styles.modalScrollView}
                 contentContainerStyle={styles.modalScrollContent}
@@ -126,7 +143,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                       styles.errorText,
                       {
                         color: theme.text,
-                        fontFamily: Fonts?.mono || "monospace",
+                        fontFamily: Fonts?.mono || 'monospace',
                       },
                     ]}
                     selectable
@@ -135,93 +152,99 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                   </Text>
                 </View>
               </ScrollView>
-            </ThemedView>
+            </View>
           </View>
         </Modal>
       ) : null}
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: Spacing["2xl"],
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing['2xl'],
   },
   content: {
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: Spacing.lg,
-    width: "100%",
-    maxWidth: 600,
+    width: '100%',
+    maxWidth: 400,
+  },
+  image: {
+    width: 120,
+    height: 120,
+    marginBottom: Spacing.lg,
   },
   title: {
-    textAlign: "center",
-    lineHeight: 40,
+    fontSize: 28,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 36,
   },
   message: {
-    textAlign: "center",
-    opacity: 0.7,
-    lineHeight: 24,
+    fontSize: 18,
+    textAlign: 'center',
+    lineHeight: 26,
+    marginBottom: Spacing.lg,
   },
   topButton: {
-    position: "absolute",
-    top: Spacing["2xl"] + Spacing.lg,
+    position: 'absolute',
+    top: Spacing['2xl'] + Spacing.lg,
     right: Spacing.lg,
     width: 44,
     height: 44,
     borderRadius: BorderRadius.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
   },
   button: {
     paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing["2xl"],
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing['3xl'],
     minWidth: 200,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   buttonText: {
-    fontWeight: "600",
-    textAlign: "center",
-    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    fontSize: 18,
+    color: '#FFFFFF',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
   modalContainer: {
-    width: "100%",
-    height: "90%",
+    width: '100%',
+    height: '90%',
     borderTopLeftRadius: BorderRadius.lg,
     borderTopRightRadius: BorderRadius.lg,
   },
   modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(128, 128, 128, 0.2)",
   },
   modalTitle: {
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: '600',
   },
   closeButton: {
     padding: Spacing.xs,
@@ -233,14 +256,14 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   errorContainer: {
-    width: "100%",
+    width: '100%',
     borderRadius: BorderRadius.md,
-    overflow: "hidden",
+    overflow: 'hidden',
     padding: Spacing.lg,
   },
   errorText: {
     fontSize: 12,
     lineHeight: 18,
-    width: "100%",
+    width: '100%',
   },
 });
