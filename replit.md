@@ -82,8 +82,9 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes (January 2026)
 
 ### Game System Implementation
-- **4 Distinct Game Screens**: Memory Grid, Word Chain, Echo Chronicles, and Riddles all have unique game mechanics
-- **WordChainScreen**: Players continue word chain where each word starts with last letter of previous word
+- **6 Distinct Game Screens**: Memory Grid, Word Chain, Echo Chronicles, Riddles, Letter Link, and Family Quiz
+- **WordChainScreen**: Memory-based word chain with memorize/recall phases
+- **LetterLinkScreen**: Multiplayer word game - pick words starting with given letter, ending letter becomes next starting letter. Pick a used word and you lose!
 - **EchoChroniclesScreen**: Story-sharing game with prompts to help seniors share memories
 - **RiddlesScreen**: Riddle-solving game with hints and streak bonuses
 - **LeaderboardScreen**: Age-grouped rankings (50-59, 60-69, 70-79, 80+) with game type filtering
