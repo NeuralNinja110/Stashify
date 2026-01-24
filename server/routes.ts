@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 
-// OpenRouter API helper - using Llama 3.2 for natural conversation
+// OpenRouter API helper
 async function callOpenRouter(messages: { role: string; content: string }[], systemPrompt?: string) {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -11,7 +11,7 @@ async function callOpenRouter(messages: { role: string; content: string }[], sys
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "meta-llama/llama-3.2-3b-instruct:free",
+      model: "tngtech/deepseek-r1t-chimera:free",
       messages: systemPrompt 
         ? [{ role: "system", content: systemPrompt }, ...messages]
         : messages,
@@ -71,72 +71,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== SPEECH-TO-TEXT ROUTE =====
-  // Uses OpenRouter's multimodal audio input to transcribe audio
+  // Note: OpenRouter doesn't support audio input, so voice input is disabled
   app.post("/api/speech-to-text", async (req: Request, res: Response) => {
-    try {
-      const { audioBase64, mimeType, language } = req.body;
-      
-      if (!audioBase64) {
-        return res.status(400).json({ error: "Audio data is required", transcription: "" });
-      }
-      
-      // Determine format from mimeType
-      let format = "wav";
-      if (mimeType?.includes("webm")) format = "webm";
-      else if (mimeType?.includes("mp4") || mimeType?.includes("m4a")) format = "mp4";
-      else if (mimeType?.includes("mp3") || mimeType?.includes("mpeg")) format = "mp3";
-      else if (mimeType?.includes("ogg")) format = "ogg";
-      
-      // Use OpenRouter with a multimodal model for transcription
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-flash-1.5-8b",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "input_audio",
-                  input_audio: {
-                    data: audioBase64,
-                    format: format,
-                  },
-                },
-                {
-                  type: "text",
-                  text: `Transcribe this audio exactly. Output ONLY the transcription text, nothing else. Language: ${language === 'ta' ? 'Tamil' : 'English'}`,
-                },
-              ],
-            },
-          ],
-        }),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        console.error("Transcription error:", error);
-        return res.status(500).json({ 
-          error: "Failed to transcribe audio", 
-          transcription: "" 
-        });
-      }
-      
-      const data = await response.json();
-      const transcription = data.choices?.[0]?.message?.content?.trim() || "";
-      
-      res.json({ transcription });
-    } catch (error) {
-      console.error("Speech-to-text error:", error);
-      res.status(500).json({ 
-        error: "Failed to process audio", 
-        transcription: "" 
-      });
-    }
+    res.status(501).json({ 
+      error: "Voice input not available with current AI provider. Please type your message.", 
+      transcription: "" 
+    });
   });
 
   // ===== AI COMPANION ROUTES =====
@@ -198,27 +138,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (activeReminders) userContext += `\nActive Reminders: ${activeReminders}`;
       }
       
-      const systemPrompt = `You are ${companionName}, chatting with your friend ${userName}.
+      const systemPrompt = `You are ${companionName}, a warm, caring AI companion for elderly users in India.
+You speak ${lang}. You are talking directly to ${userName}.
+${userContext}
 
-CRITICAL - YOU MUST:
-- Speak AS ${companionName} in FIRST PERSON (I, me, my)
-- Reply directly to ${userName} like a warm friend texting
-- Keep replies SHORT (1-2 sentences)
-- Be warm, caring, and natural
+CRITICAL RULES:
+- ALWAYS speak in FIRST PERSON directly to ${userName}
+- Say "I think..." or "I would suggest..." NOT "${companionName} thinks..."
+- Address ${userName} directly: "You mentioned..." or "How are you feeling?"
+- NEVER refer to yourself in third person
+- NEVER narrate what you're doing (wrong: "${companionName} smiles warmly")
+- Just talk naturally like a caring friend
 
-NEVER DO THIS:
-- Never use third person ("the user", "${userName} said", "Thunaivan replies")
-- Never narrate actions ("*smiles*", "*nods*")
-- Never say "you mentioned" or "based on what you said"
-- Never explain your thinking process
-
-EXAMPLES OF CORRECT REPLIES:
-- "Hi ${userName}! How are you today?"
-- "Oh that's wonderful! Tell me more."
-- "I'm so happy to hear that!"
-- "Aww, I hope you feel better soon."
-
-Language: ${lang}. Now respond naturally:`;
+Guidelines:
+- Be warm, patient, and emotionally supportive
+- Use simple language appropriate for elderly users
+- When asked to play games or riddles, do it directly
+- Keep responses conversational (2-4 sentences)
+- Reference their interests: ${userInterests?.join(', ') || 'various topics'}`;
 
       const conversationHistory = history
         .map(h => `${h.role === 'user' ? userName : companionName}: ${h.content}`)
@@ -242,27 +179,8 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
 
       let aiResponse = await callOpenRouter(messages, systemPrompt) || "I'm here with you. How can I help?";
       
-      // Clean up any unwanted patterns
-      aiResponse = aiResponse
-        // Remove thinking tags
-        .replace(/<think>[\s\S]*?<\/think>/gi, '')
-        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
-        .replace(/\*thinks\*[\s\S]*?\*\/thinks\*/gi, '')
-        .replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, '')
-        // Remove third-person narration patterns
-        .replace(/^(Thunaivan|Thunaivi)\s*(says?|replies?|responds?|would say|should say)[:\s]*/gi, '')
-        .replace(/^(The user|They|He|She)\s*(said|mentioned|asked|wants?)[:\s]*.+?[.!]\s*/gi, '')
-        .replace(/^(Here'?s?|This is)\s*(my|the)\s*response[:\s]*/gi, '')
-        // Remove action narration
-        .replace(/\*[^*]+\*/g, '')
-        // Remove quotes if the whole response is quoted
-        .replace(/^["'](.+)["']$/s, '$1')
-        .trim();
-      
-      // If response is empty after stripping, provide fallback
-      if (!aiResponse) {
-        aiResponse = "I'm here with you!";
-      }
+      // Strip out thinking process tags from deepseek model
+      aiResponse = aiResponse.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
       // Save AI response
       await storage.addChatMessage({
