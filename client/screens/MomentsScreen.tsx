@@ -1,22 +1,34 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, FlatList } from 'react-native';
+import React, { useEffect, useCallback } from 'react';
+import { StyleSheet, View, FlatList, RefreshControl } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { MomentCard } from '@/components/MomentCard';
 import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/LoadingSkeleton';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/context/AuthContext';
 import { Spacing } from '@/constants/theme';
-import { GoldenMoment } from '@/types';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 
 const emptyMoments = require('../../assets/images/empty-moments.png');
+
+interface Moment {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  photoUri?: string;
+  audioUri?: string;
+  tags?: string[];
+  createdAt: string;
+}
 
 export default function MomentsScreen() {
   const headerHeight = useHeaderHeight();
@@ -24,27 +36,44 @@ export default function MomentsScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const queryClient = useQueryClient();
 
-  const [moments, setMoments] = useState<GoldenMoment[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const { data: moments = [], isLoading, refetch, isRefetching } = useQuery<Moment[]>({
+    queryKey: ['/api/moments', user?.id || 'guest'],
+    enabled: !!user,
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const handleAddMoment = () => {
     navigation.navigate('AddMoment');
   };
 
-  const handleMomentPress = (moment: GoldenMoment) => {
+  const handleMomentPress = (moment: Moment) => {
     navigation.navigate('MomentDetail', { momentId: moment.id });
   };
 
-  const handlePlayMoment = (moment: GoldenMoment) => {
+  const handlePlayMoment = (moment: Moment) => {
     navigation.navigate('PlayMoment', { momentId: moment.id });
   };
 
-  const renderMoment = ({ item, index }: { item: GoldenMoment; index: number }) => (
+  const renderMoment = ({ item, index }: { item: Moment; index: number }) => (
     <Animated.View entering={FadeInDown.delay(index * 100).duration(400)}>
       <MomentCard
-        moment={item}
+        moment={{
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          photoUri: item.photoUri,
+          hasAudio: !!item.audioUri,
+          createdAt: new Date(item.createdAt),
+        }}
         onPress={() => handleMomentPress(item)}
         onPlay={() => handlePlayMoment(item)}
       />
@@ -93,6 +122,14 @@ export default function MomentsScreen() {
         scrollIndicatorInsets={{ bottom: insets.bottom }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmpty}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
       />
     </View>
   );

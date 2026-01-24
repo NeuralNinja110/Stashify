@@ -7,6 +7,10 @@ import OnboardingScreen from '@/screens/OnboardingScreen';
 import LoginScreen from '@/screens/LoginScreen';
 import VoiceCompanionScreen from '@/screens/VoiceCompanionScreen';
 import MemoryGridScreen from '@/screens/MemoryGridScreen';
+import WordChainScreen from '@/screens/WordChainScreen';
+import EchoChroniclesScreen from '@/screens/EchoChroniclesScreen';
+import RiddlesScreen from '@/screens/RiddlesScreen';
+import LeaderboardScreen from '@/screens/LeaderboardScreen';
 import AddMomentScreen from '@/screens/AddMomentScreen';
 import AddFamilyMemberScreen from '@/screens/AddFamilyMemberScreen';
 import AddReminderScreen from '@/screens/AddReminderScreen';
@@ -31,7 +35,7 @@ export type RootStackParamList = {
   AddFamilyMember: undefined;
   FamilyMemberDetail: { memberId: string };
   AddReminder: undefined;
-  Leaderboard: { gameType: string };
+  Leaderboard: { gameType?: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -88,7 +92,7 @@ export default function RootStackNavigator() {
           />
           <Stack.Screen
             name="WordChain"
-            component={MemoryGridScreen}
+            component={WordChainScreen}
             options={{
               presentation: 'fullScreenModal',
               headerShown: false,
@@ -96,7 +100,7 @@ export default function RootStackNavigator() {
           />
           <Stack.Screen
             name="EchoChronicles"
-            component={MemoryGridScreen}
+            component={EchoChroniclesScreen}
             options={{
               presentation: 'fullScreenModal',
               headerShown: false,
@@ -104,7 +108,7 @@ export default function RootStackNavigator() {
           />
           <Stack.Screen
             name="Riddles"
-            component={MemoryGridScreen}
+            component={RiddlesScreen}
             options={{
               presentation: 'fullScreenModal',
               headerShown: false,
@@ -145,6 +149,13 @@ export default function RootStackNavigator() {
             component={AddReminderScreen}
             options={{
               title: 'Add Reminder',
+            }}
+          />
+          <Stack.Screen
+            name="Leaderboard"
+            component={LeaderboardScreen}
+            options={{
+              title: 'Leaderboard',
             }}
           />
         </>

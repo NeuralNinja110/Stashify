@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, TextInput, Image, Pressable } from 'react-native';
+import { StyleSheet, View, TextInput, Image, Pressable, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -7,6 +7,7 @@ import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ThemedText } from '@/components/ThemedText';
@@ -14,7 +15,9 @@ import { ThemedView } from '@/components/ThemedView';
 import { Button } from '@/components/Button';
 import { VoiceButton } from '@/components/VoiceButton';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
+import { apiRequest } from '@/lib/query-client';
 
 export default function AddMomentScreen() {
   const insets = useSafeAreaInsets();
@@ -22,12 +25,37 @@ export default function AddMomentScreen() {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecording, setHasRecording] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+
+  const createMomentMutation = useMutation({
+    mutationFn: async (momentData: {
+      userId: string;
+      title: string;
+      description?: string;
+      photoUri?: string;
+      audioUri?: string;
+      tags?: string[];
+    }) => {
+      const response = await apiRequest('POST', '/api/moments', momentData);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/moments'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      navigation.goBack();
+    },
+    onError: (error) => {
+      console.error('Failed to save moment:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    },
+  });
 
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -43,6 +71,11 @@ export default function AddMomentScreen() {
   };
 
   const handleTakePhoto = async () => {
+    if (Platform.OS === 'web') {
+      handlePickImage();
+      return;
+    }
+
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       return;
@@ -71,15 +104,17 @@ export default function AddMomentScreen() {
   const handleSave = async () => {
     if (!title.trim()) return;
 
-    setIsSaving(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    setTimeout(() => {
-      navigation.goBack();
-    }, 1000);
+    createMomentMutation.mutate({
+      userId: user?.id || 'guest',
+      title: title.trim(),
+      description: description.trim() || undefined,
+      photoUri: photoUri || undefined,
+      audioUri: hasRecording ? 'audio-recording-placeholder' : undefined,
+      tags: [],
+    });
   };
 
-  const canSave = title.trim() && (hasRecording || photoUri);
+  const canSave = title.trim() && !createMomentMutation.isPending;
 
   return (
     <ThemedView style={styles.container}>
@@ -159,6 +194,30 @@ export default function AddMomentScreen() {
           />
         </View>
 
+        <View style={styles.inputSection}>
+          <ThemedText type="h4" style={styles.label}>
+            Description (optional)
+          </ThemedText>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Tell the story behind this moment..."
+            placeholderTextColor={theme.textSecondary}
+            style={[
+              styles.descriptionInput,
+              {
+                backgroundColor: theme.backgroundDefault,
+                color: theme.text,
+                borderColor: theme.border,
+              },
+            ]}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            testID="input-description"
+          />
+        </View>
+
         <View style={styles.voiceSection}>
           <ThemedText type="h4" style={styles.label}>
             {t('moments.recordStory')}
@@ -172,7 +231,7 @@ export default function AddMomentScreen() {
 
           <View style={styles.voiceControls}>
             <VoiceButton isRecording={isRecording} onPress={handleVoicePress} />
-            {hasRecording && !isRecording && (
+            {hasRecording && !isRecording ? (
               <View style={styles.recordingStatus}>
                 <Feather name="check-circle" size={24} color={theme.success} />
                 <ThemedText
@@ -182,15 +241,15 @@ export default function AddMomentScreen() {
                   Recording saved
                 </ThemedText>
               </View>
-            )}
-            {isRecording && (
+            ) : null}
+            {isRecording ? (
               <ThemedText
                 type="body"
                 style={{ color: theme.error, marginTop: Spacing.lg }}
               >
                 Recording...
               </ThemedText>
-            )}
+            ) : null}
           </View>
         </View>
       </KeyboardAwareScrollViewCompat>
@@ -206,10 +265,10 @@ export default function AddMomentScreen() {
       >
         <Button
           onPress={handleSave}
-          disabled={!canSave || isSaving}
+          disabled={!canSave}
           style={styles.saveButton}
         >
-          {isSaving ? t('common.loading') : t('common.save')}
+          {createMomentMutation.isPending ? t('common.loading') : t('common.save')}
         </Button>
       </View>
     </ThemedView>
@@ -266,6 +325,14 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.lg,
     fontSize: 18,
+    borderWidth: 2,
+  },
+  descriptionInput: {
+    minHeight: 120,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    fontSize: 16,
     borderWidth: 2,
   },
   voiceSection: {
