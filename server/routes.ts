@@ -1,8 +1,15 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
+import OpenAI, { toFile } from "openai";
 
-// OpenRouter API helper
+// OpenAI client for speech-to-text (using Replit AI Integrations)
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
+
+// OpenRouter API helper - using Llama 4 Maverick (no thinking process)
 async function callOpenRouter(messages: { role: string; content: string }[], systemPrompt?: string) {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -11,7 +18,7 @@ async function callOpenRouter(messages: { role: string; content: string }[], sys
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "tngtech/deepseek-r1t-chimera:free",
+      model: "meta-llama/llama-4-maverick:free",
       messages: systemPrompt 
         ? [{ role: "system", content: systemPrompt }, ...messages]
         : messages,
@@ -71,12 +78,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== SPEECH-TO-TEXT ROUTE =====
-  // Note: OpenRouter doesn't support audio input, so voice input is disabled
+  // Uses OpenAI Whisper via Replit AI Integrations
   app.post("/api/speech-to-text", async (req: Request, res: Response) => {
-    res.status(501).json({ 
-      error: "Voice input not available with current AI provider. Please type your message.", 
-      transcription: "" 
-    });
+    try {
+      const { audioBase64, language, mimeType } = req.body;
+      
+      if (!audioBase64) {
+        return res.status(400).json({ error: "Audio data is required", transcription: "" });
+      }
+
+      // Convert base64 to buffer
+      const audioBuffer = Buffer.from(audioBase64, "base64");
+      
+      // Determine file extension from mimeType
+      let ext = "wav";
+      if (mimeType?.includes("webm")) ext = "webm";
+      else if (mimeType?.includes("mp3")) ext = "mp3";
+      else if (mimeType?.includes("m4a") || mimeType?.includes("mp4")) ext = "m4a";
+      
+      // Create file for OpenAI
+      const file = await toFile(audioBuffer, `audio.${ext}`);
+      
+      // Transcribe using OpenAI Whisper
+      const transcription = await openai.audio.transcriptions.create({
+        file,
+        model: "gpt-4o-mini-transcribe",
+        language: language === "ta" ? "ta" : "en",
+      });
+
+      res.json({ transcription: transcription.text });
+    } catch (error: any) {
+      console.error("Speech-to-text error:", error);
+      res.status(500).json({ 
+        error: "Failed to transcribe audio", 
+        transcription: "" 
+      });
+    }
   });
 
   // ===== AI COMPANION ROUTES =====

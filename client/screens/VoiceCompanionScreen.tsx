@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, FlatList, TextInput, Pressable, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -16,14 +16,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { getApiUrl } from '@/lib/query-client';
-
-// Web Speech API types
-declare global {
-  interface Window {
-    webkitSpeechRecognition: any;
-    SpeechRecognition: any;
-  }
-}
 
 interface Message {
   id: string;
@@ -44,8 +36,9 @@ export default function VoiceCompanionScreen() {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const companionName =
     user?.gender === 'female' ? t('companion.thunaivi') : t('companion.thunaivan');
@@ -97,66 +90,98 @@ export default function VoiceCompanionScreen() {
     }
   };
 
-  // Initialize Web Speech Recognition
-  useEffect(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        setVoiceSupported(true);
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = user?.language === 'ta' ? 'ta-IN' : 'en-US';
+  // Start recording using MediaRecorder
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+      });
+      
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+      
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
         
-        recognition.onresult = (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          if (transcript.trim()) {
-            setInputText(transcript);
-            handleSendMessage(transcript);
+        if (audioChunksRef.current.length > 0) {
+          setIsTranscribing(true);
+          try {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            
+            // Convert to base64
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              const base64 = (reader.result as string).split(',')[1];
+              
+              try {
+                const response = await fetch(
+                  new URL('/api/speech-to-text', getApiUrl()).toString(),
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      audioBase64: base64,
+                      language: user?.language || 'en',
+                      mimeType: 'audio/webm',
+                    }),
+                  }
+                );
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  if (data.transcription?.trim()) {
+                    handleSendMessage(data.transcription);
+                  } else {
+                    Alert.alert('Voice Input', 'Could not understand the audio. Please try again.');
+                  }
+                } else {
+                  throw new Error('Transcription failed');
+                }
+              } catch (error) {
+                console.error('Transcription error:', error);
+                Alert.alert('Error', 'Failed to process voice. Please try typing instead.');
+              } finally {
+                setIsTranscribing(false);
+              }
+            };
+            reader.readAsDataURL(audioBlob);
+          } catch (error) {
+            console.error('Audio processing error:', error);
+            setIsTranscribing(false);
           }
-          setIsRecording(false);
-        };
-        
-        recognition.onerror = (event: any) => {
-          console.error('Speech recognition error:', event.error);
-          setIsRecording(false);
-          if (event.error === 'not-allowed') {
-            Alert.alert('Permission Required', 'Please allow microphone access to use voice input.');
-          }
-        };
-        
-        recognition.onend = () => {
-          setIsRecording(false);
-        };
-        
-        recognitionRef.current = recognition;
-      }
+        }
+      };
+      
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(100);
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      Alert.alert('Permission Required', 'Please allow microphone access to use voice input.');
     }
-  }, [user?.language]);
+  };
+
+  // Stop recording
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
   const handleVoicePress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    if (!voiceSupported) {
-      Alert.alert(
-        'Voice Input Unavailable', 
-        'Voice input is not supported in this browser. Please type your message instead.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    
     if (isRecording) {
-      recognitionRef.current?.stop();
-      setIsRecording(false);
+      stopRecording();
     } else {
-      try {
-        recognitionRef.current?.start();
-        setIsRecording(true);
-      } catch (error) {
-        console.error('Failed to start recognition:', error);
-        Alert.alert('Error', 'Failed to start voice input. Please try again.');
-      }
+      await startRecording();
     }
   };
 
@@ -371,16 +396,16 @@ export default function VoiceCompanionScreen() {
             type="caption"
             style={{ color: theme.textSecondary, marginBottom: Spacing.md }}
           >
-            {isRecording 
-              ? t('companion.listening', { defaultValue: 'Listening...' })
-              : voiceSupported 
-                ? t('companion.tapToSpeak', { defaultValue: 'Tap to speak' })
-                : t('companion.voiceUnavailable', { defaultValue: 'Voice not supported' })}
+            {isTranscribing 
+              ? t('companion.processing', { defaultValue: 'Processing...' })
+              : isRecording 
+                ? t('companion.listening', { defaultValue: 'Listening...' })
+                : t('companion.tapToSpeak', { defaultValue: 'Tap to speak' })}
           </ThemedText>
           <VoiceButton 
             isRecording={isRecording} 
             onPress={handleVoicePress} 
-            disabled={isLoading}
+            disabled={isLoading || isTranscribing}
           />
         </View>
       </Animated.View>
