@@ -43,72 +43,110 @@ interface QuizQuestion {
   options: string[];
 }
 
-const RELATION_MAP: Record<string, string> = {
-  'father-mother': 'Husband & Wife',
-  'mother-father': 'Husband & Wife',
-  'father-son': 'Father & Son',
-  'son-father': 'Father & Son',
-  'father-daughter': 'Father & Daughter',
-  'daughter-father': 'Father & Daughter',
-  'mother-son': 'Mother & Son',
-  'son-mother': 'Mother & Son',
-  'mother-daughter': 'Mother & Daughter',
-  'daughter-mother': 'Mother & Daughter',
-  'brother-brother': 'Brothers',
-  'sister-sister': 'Sisters',
-  'brother-sister': 'Siblings',
-  'sister-brother': 'Siblings',
-  'grandfather-grandmother': 'Grandparents',
-  'grandmother-grandfather': 'Grandparents',
-  'grandfather-father': 'Father & Son',
-  'father-grandfather': 'Father & Son',
-  'grandfather-mother': 'Father & Daughter-in-law',
-  'grandmother-father': 'Mother & Son',
-  'grandmother-mother': 'Mother & Daughter-in-law',
-  'uncle-aunt': 'Husband & Wife',
-  'aunt-uncle': 'Husband & Wife',
-  'cousin-cousin': 'Cousins',
-};
-
-const ALL_RELATIONS = [
-  'Husband & Wife',
-  'Father & Son',
-  'Father & Daughter',
-  'Mother & Son',
-  'Mother & Daughter',
-  'Brothers',
-  'Sisters',
-  'Siblings',
-  'Grandparents',
-  'Cousins',
-  'Uncle & Nephew',
-  'Aunt & Niece',
-  'Father & Daughter-in-law',
-  'Mother & Daughter-in-law',
-];
-
 function getRelationBetween(member1: FamilyMember, member2: FamilyMember): string {
-  const key1 = `${member1.relation.toLowerCase()}-${member2.relation.toLowerCase()}`;
-  const key2 = `${member2.relation.toLowerCase()}-${member1.relation.toLowerCase()}`;
+  const r1 = member1.relation.toLowerCase();
+  const r2 = member2.relation.toLowerCase();
   
-  if (RELATION_MAP[key1]) return RELATION_MAP[key1];
-  if (RELATION_MAP[key2]) return RELATION_MAP[key2];
-  
-  if (member1.relation === member2.relation) {
-    return `Both are your ${member1.relation}s`;
+  if ((r1 === 'father' || r1 === 'dad') && (r2 === 'mother' || r2 === 'mom')) {
+    return `${member1.name} is ${member2.name}'s Husband`;
+  }
+  if ((r1 === 'mother' || r1 === 'mom') && (r2 === 'father' || r2 === 'dad')) {
+    return `${member1.name} is ${member2.name}'s Wife`;
   }
   
-  return `${member1.relation} & ${member2.relation}`;
+  if ((r1 === 'father' || r1 === 'dad' || r1 === 'mother' || r1 === 'mom') && r2 === 'son') {
+    return `${member2.name} is ${member1.name}'s Son`;
+  }
+  if ((r1 === 'father' || r1 === 'dad' || r1 === 'mother' || r1 === 'mom') && r2 === 'daughter') {
+    return `${member2.name} is ${member1.name}'s Daughter`;
+  }
+  if (r1 === 'son' && (r2 === 'father' || r2 === 'dad')) {
+    return `${member2.name} is ${member1.name}'s Father`;
+  }
+  if (r1 === 'son' && (r2 === 'mother' || r2 === 'mom')) {
+    return `${member2.name} is ${member1.name}'s Mother`;
+  }
+  if (r1 === 'daughter' && (r2 === 'father' || r2 === 'dad')) {
+    return `${member2.name} is ${member1.name}'s Father`;
+  }
+  if (r1 === 'daughter' && (r2 === 'mother' || r2 === 'mom')) {
+    return `${member2.name} is ${member1.name}'s Mother`;
+  }
+  
+  if (r1 === 'brother' && r2 === 'brother') {
+    return `${member1.name} and ${member2.name} are Brothers`;
+  }
+  if (r1 === 'sister' && r2 === 'sister') {
+    return `${member1.name} and ${member2.name} are Sisters`;
+  }
+  if ((r1 === 'brother' && r2 === 'sister') || (r1 === 'sister' && r2 === 'brother')) {
+    return `${member1.name} and ${member2.name} are Siblings`;
+  }
+  
+  if ((r1 === 'grandfather' || r1 === 'grandpa') && (r2 === 'grandmother' || r2 === 'grandma')) {
+    return `${member1.name} is ${member2.name}'s Husband`;
+  }
+  if ((r1 === 'grandmother' || r1 === 'grandma') && (r2 === 'grandfather' || r2 === 'grandpa')) {
+    return `${member1.name} is ${member2.name}'s Wife`;
+  }
+  
+  if ((r1 === 'grandfather' || r1 === 'grandpa' || r1 === 'grandmother' || r1 === 'grandma') && 
+      (r2 === 'father' || r2 === 'dad')) {
+    return `${member2.name} is ${member1.name}'s Son`;
+  }
+  if ((r1 === 'grandfather' || r1 === 'grandpa' || r1 === 'grandmother' || r1 === 'grandma') && 
+      (r2 === 'mother' || r2 === 'mom')) {
+    return `${member2.name} is ${member1.name}'s Daughter-in-law`;
+  }
+  
+  if ((r1 === 'uncle') && (r2 === 'aunt')) {
+    return `${member1.name} is ${member2.name}'s Husband`;
+  }
+  if ((r1 === 'aunt') && (r2 === 'uncle')) {
+    return `${member1.name} is ${member2.name}'s Wife`;
+  }
+  
+  if (r1 === 'cousin' && r2 === 'cousin') {
+    return `${member1.name} and ${member2.name} are Cousins`;
+  }
+  
+  if ((r1 === 'uncle' || r1 === 'aunt') && (r2 === 'father' || r2 === 'dad' || r2 === 'mother' || r2 === 'mom')) {
+    return `${member1.name} and ${member2.name} are Siblings`;
+  }
+  if ((r1 === 'father' || r1 === 'dad' || r1 === 'mother' || r1 === 'mom') && (r2 === 'uncle' || r2 === 'aunt')) {
+    return `${member1.name} and ${member2.name} are Siblings`;
+  }
+  
+  return `${member1.name} (your ${member1.relation}) & ${member2.name} (your ${member2.relation})`;
 }
 
-function generateOptions(correctRelation: string): string[] {
+function generateOptions(member1: FamilyMember, member2: FamilyMember, correctRelation: string): string[] {
   const options = new Set<string>([correctRelation]);
   
-  while (options.size < 4) {
-    const randomRelation = ALL_RELATIONS[Math.floor(Math.random() * ALL_RELATIONS.length)];
-    if (randomRelation !== correctRelation) {
-      options.add(randomRelation);
-    }
+  const wrongOptions = [
+    `${member1.name} is ${member2.name}'s Brother`,
+    `${member1.name} is ${member2.name}'s Sister`,
+    `${member1.name} is ${member2.name}'s Son`,
+    `${member1.name} is ${member2.name}'s Daughter`,
+    `${member1.name} is ${member2.name}'s Father`,
+    `${member1.name} is ${member2.name}'s Mother`,
+    `${member1.name} is ${member2.name}'s Husband`,
+    `${member1.name} is ${member2.name}'s Wife`,
+    `${member1.name} is ${member2.name}'s Uncle`,
+    `${member1.name} is ${member2.name}'s Aunt`,
+    `${member1.name} is ${member2.name}'s Nephew`,
+    `${member1.name} is ${member2.name}'s Niece`,
+    `${member1.name} and ${member2.name} are Cousins`,
+    `${member1.name} and ${member2.name} are Siblings`,
+    `${member1.name} and ${member2.name} are Brothers`,
+    `${member1.name} and ${member2.name} are Sisters`,
+  ].filter(o => o !== correctRelation);
+  
+  const shuffled = wrongOptions.sort(() => Math.random() - 0.5);
+  
+  for (const opt of shuffled) {
+    if (options.size >= 4) break;
+    options.add(opt);
   }
   
   return Array.from(options).sort(() => Math.random() - 0.5);
@@ -180,7 +218,7 @@ export default function FamilyQuizScreen() {
     setUsedPairs(prev => new Set(prev).add(pairKey));
     
     const correctRelation = getRelationBetween(member1, member2);
-    const options = generateOptions(correctRelation);
+    const options = generateOptions(member1, member2, correctRelation);
     
     return {
       member1,
@@ -367,7 +405,7 @@ export default function FamilyQuizScreen() {
 
       <View style={styles.questionContainer}>
         <ThemedText style={styles.questionText}>
-          What is the relationship between these two family members?
+          How are {currentQuestion?.member1.name} and {currentQuestion?.member2.name} related?
         </ThemedText>
       </View>
 
