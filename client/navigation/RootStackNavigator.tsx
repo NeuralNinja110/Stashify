@@ -11,6 +11,7 @@ import WordChainScreen from '@/screens/WordChainScreen';
 import EchoChroniclesScreen from '@/screens/EchoChroniclesScreen';
 import RiddlesScreen from '@/screens/RiddlesScreen';
 import FamilyQuizScreen from '@/screens/FamilyQuizScreen';
+import LetterLinkScreen from '@/screens/LetterLinkScreen';
 import LeaderboardScreen from '@/screens/LeaderboardScreen';
 import AddMomentScreen from '@/screens/AddMomentScreen';
 import AddFamilyMemberScreen from '@/screens/AddFamilyMemberScreen';
@@ -30,7 +31,7 @@ export type RootStackParamList = {
   WordChain: undefined;
   EchoChronicles: undefined;
   Riddles: undefined;
-  MemoryQuiz: undefined;
+  LetterLink: undefined;
   FamilyQuiz: undefined;
   AddMoment: undefined;
   MomentDetail: { momentId: string };
@@ -118,8 +119,8 @@ export default function RootStackNavigator() {
             }}
           />
           <Stack.Screen
-            name="MemoryQuiz"
-            component={MemoryGridScreen}
+            name="LetterLink"
+            component={LetterLinkScreen}
             options={{
               presentation: 'fullScreenModal',
               headerShown: false,

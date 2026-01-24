@@ -209,16 +209,16 @@ export default function HomeScreen() {
               </ThemedText>
             </Pressable>
             <Pressable
-              onPress={() => navigation.navigate('MemoryQuiz')}
+              onPress={() => navigation.navigate('LetterLink')}
               style={[
                 styles.actionCard,
                 { backgroundColor: theme.backgroundDefault },
               ]}
-              testID="button-quick-quiz"
+              testID="button-quick-letterlink"
             >
-              <Feather name="help-circle" size={32} color={theme.primary} />
+              <Feather name="link" size={32} color={theme.primary} />
               <ThemedText type="small" style={styles.actionText}>
-                Quiz
+                Letter Link
               </ThemedText>
             </Pressable>
           </View>

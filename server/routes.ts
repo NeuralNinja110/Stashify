@@ -999,6 +999,284 @@ Only return the JSON array.`;
     }
   });
 
+  // ===== LETTER LINK MULTIPLAYER ROUTES =====
+  // Word game where players pick words based on starting/ending letters
+  
+  const letterLinkWordPool = [
+    'apple', 'elephant', 'tiger', 'rabbit', 'table', 'eagle', 'energy', 'yellow',
+    'water', 'rainbow', 'winter', 'river', 'red', 'door', 'rose', 'emerald',
+    'dolphin', 'nature', 'evening', 'garden', 'night', 'train', 'noon', 'nice',
+    'earth', 'heart', 'tower', 'road', 'dream', 'milk', 'kangaroo', 'orange',
+    'egg', 'green', 'noon', 'nest', 'turtle', 'emperor', 'rain', 'noon',
+    'love', 'elephant', 'tree', 'escape', 'echo', 'ocean', 'north', 'home',
+    'elephant', 'temple', 'energy', 'yarn', 'night', 'tower', 'radio', 'open',
+    'dragon', 'nerve', 'evening', 'great', 'travel', 'lime', 'extra', 'anchor'
+  ];
+
+  function getWordsStartingWith(letter: string, usedWords: string[], count: number = 4): string[] {
+    const available = letterLinkWordPool.filter(
+      w => w.toLowerCase().startsWith(letter.toLowerCase()) && !usedWords.includes(w.toLowerCase())
+    );
+    const shuffled = [...available].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+  }
+
+  // Create a Letter Link room
+  app.post("/api/games/letterlink/rooms", async (req: Request, res: Response) => {
+    try {
+      const { userId, playerName } = req.body;
+      
+      if (!userId || !playerName) {
+        return res.status(400).json({ error: "userId and playerName are required" });
+      }
+
+      // Start with a random letter
+      const startLetters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'w'];
+      const startingLetter = startLetters[Math.floor(Math.random() * startLetters.length)];
+      const wordOptions = getWordsStartingWith(startingLetter, [], 4);
+      
+      const gameState = {
+        usedWords: [] as string[],
+        currentLetter: startingLetter,
+        currentTurn: 1,
+        player1: { id: userId, name: playerName, score: 0 },
+        player2: null as { id: string; name: string; score: number } | null,
+        phase: 'waiting', // waiting, playing, gameOver
+        wordOptions,
+        lastAction: Date.now(),
+        winner: null as string | null,
+        loser: null as string | null,
+        reason: null as string | null,
+      };
+
+      const session = await storage.createGameSession({
+        gameType: 'letter-link',
+        mode: 'multiplayer',
+        status: 'waiting',
+        hostUserId: userId,
+        maxPlayers: 2,
+        gameState,
+      });
+
+      res.json({ 
+        roomCode: session.roomCode, 
+        sessionId: session.id,
+        gameState: session.gameState
+      });
+    } catch (error) {
+      console.error("Create Letter Link room error:", error);
+      res.status(500).json({ error: "Failed to create room" });
+    }
+  });
+
+  // Join a Letter Link room
+  app.post("/api/games/letterlink/rooms/join", async (req: Request, res: Response) => {
+    try {
+      const { roomCode, userId, playerName } = req.body;
+      
+      if (!roomCode || !userId || !playerName) {
+        return res.status(400).json({ error: "roomCode, userId, and playerName are required" });
+      }
+
+      const session = await storage.getGameSessionByCode(roomCode.toUpperCase());
+      
+      if (!session) {
+        return res.status(404).json({ error: "Room not found" });
+      }
+      
+      if (session.gameType !== 'letter-link') {
+        return res.status(400).json({ error: "Invalid room type" });
+      }
+
+      const gameState = session.gameState as any;
+      
+      if (gameState.player2) {
+        return res.status(400).json({ error: "Room is full" });
+      }
+
+      // Add player 2
+      gameState.player2 = { id: userId, name: playerName, score: 0 };
+      gameState.phase = 'playing';
+      gameState.lastAction = Date.now();
+
+      await storage.updateGameSession(session.id, {
+        status: 'active',
+        gameState,
+      });
+
+      res.json({ 
+        sessionId: session.id,
+        roomCode: session.roomCode,
+        gameState 
+      });
+    } catch (error) {
+      console.error("Join Letter Link room error:", error);
+      res.status(500).json({ error: "Failed to join room" });
+    }
+  });
+
+  // Get Letter Link game state (polling)
+  app.get("/api/games/letterlink/rooms/:sessionId", async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.params;
+      const session = await storage.getGameSession(sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ error: "Game not found" });
+      }
+
+      res.json({
+        sessionId: session.id,
+        roomCode: session.roomCode,
+        status: session.status,
+        gameState: session.gameState,
+      });
+    } catch (error) {
+      console.error("Get Letter Link state error:", error);
+      res.status(500).json({ error: "Failed to get game state" });
+    }
+  });
+
+  // Submit a move in Letter Link
+  app.post("/api/games/letterlink/rooms/:sessionId/move", async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.params;
+      const { userId, selectedWord } = req.body;
+      
+      const session = await storage.getGameSession(sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ error: "Game not found" });
+      }
+
+      const gameState = session.gameState as any;
+      const isPlayer1 = gameState.player1?.id === userId;
+      const isPlayer2 = gameState.player2?.id === userId;
+      
+      if (!isPlayer1 && !isPlayer2) {
+        return res.status(403).json({ error: "You are not a player in this game" });
+      }
+
+      const playerNum = isPlayer1 ? 1 : 2;
+      const playerName = isPlayer1 ? gameState.player1.name : gameState.player2.name;
+      const opponentName = isPlayer1 ? gameState.player2?.name : gameState.player1.name;
+      
+      if (gameState.currentTurn !== playerNum) {
+        return res.status(400).json({ error: "Not your turn" });
+      }
+      
+      if (gameState.phase !== 'playing') {
+        return res.status(400).json({ error: "Game is not in playing phase" });
+      }
+
+      const wordLower = selectedWord.toLowerCase();
+      
+      // Check if word was already used - player loses!
+      if (gameState.usedWords.includes(wordLower)) {
+        gameState.phase = 'gameOver';
+        gameState.winner = opponentName;
+        gameState.loser = playerName;
+        gameState.reason = `${playerName} picked "${selectedWord}" which was already used!`;
+        
+        await storage.updateGameSession(session.id, {
+          status: 'completed',
+          gameState,
+          completedAt: new Date(),
+        });
+        
+        return res.json({ gameState, result: 'loss' });
+      }
+      
+      // Check if word starts with the correct letter
+      if (!wordLower.startsWith(gameState.currentLetter.toLowerCase())) {
+        return res.status(400).json({ error: `Word must start with "${gameState.currentLetter.toUpperCase()}"` });
+      }
+      
+      // Valid move - add word to used list
+      gameState.usedWords.push(wordLower);
+      
+      // Update score
+      if (isPlayer1) {
+        gameState.player1.score += 10;
+      } else {
+        gameState.player2.score += 10;
+      }
+      
+      // Get the ending letter for the next turn
+      const lastLetter = wordLower[wordLower.length - 1];
+      gameState.currentLetter = lastLetter;
+      
+      // Get new word options for next player
+      const newOptions = getWordsStartingWith(lastLetter, gameState.usedWords, 4);
+      
+      // If no words available, current player wins!
+      if (newOptions.length === 0) {
+        gameState.phase = 'gameOver';
+        gameState.winner = playerName;
+        gameState.loser = opponentName;
+        gameState.reason = `No more words starting with "${lastLetter.toUpperCase()}"! ${playerName} wins!`;
+        
+        await storage.updateGameSession(session.id, {
+          status: 'completed',
+          gameState,
+          completedAt: new Date(),
+        });
+        
+        return res.json({ gameState, result: 'win' });
+      }
+      
+      gameState.wordOptions = newOptions;
+      gameState.currentTurn = playerNum === 1 ? 2 : 1;
+      gameState.lastAction = Date.now();
+
+      await storage.updateGameSession(session.id, { gameState });
+      
+      res.json({ gameState, result: 'continue' });
+    } catch (error) {
+      console.error("Letter Link move error:", error);
+      res.status(500).json({ error: "Failed to process move" });
+    }
+  });
+
+  // Leave Letter Link game
+  app.post("/api/games/letterlink/rooms/:sessionId/leave", async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.params;
+      const { userId } = req.body;
+      
+      const session = await storage.getGameSession(sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ error: "Game not found" });
+      }
+
+      const gameState = session.gameState as any;
+      const isPlayer1 = gameState.player1?.id === userId;
+      const isPlayer2 = gameState.player2?.id === userId;
+
+      if (isPlayer1 || isPlayer2) {
+        const leavingPlayer = isPlayer1 ? gameState.player1.name : gameState.player2?.name;
+        const winner = isPlayer1 ? gameState.player2?.name : gameState.player1.name;
+        
+        gameState.phase = 'gameOver';
+        gameState.winner = winner;
+        gameState.loser = leavingPlayer;
+        gameState.reason = `${leavingPlayer} left the game`;
+
+        await storage.updateGameSession(session.id, {
+          status: 'completed',
+          gameState,
+          completedAt: new Date(),
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Leave Letter Link error:", error);
+      res.status(500).json({ error: "Failed to leave game" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

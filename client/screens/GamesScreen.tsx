@@ -62,12 +62,12 @@ const GAMES: GameInfo[] = [
     screen: 'Riddles',
   },
   {
-    id: 'memory-quiz',
-    titleKey: 'games.quiz',
-    descKey: 'games.quizDesc',
-    icon: gameRiddleIcon,
+    id: 'letter-link',
+    titleKey: 'games.letterLink',
+    descKey: 'games.letterLinkDesc',
+    icon: gameWordchainIcon,
     difficulty: 'medium',
-    screen: 'MemoryQuiz',
+    screen: 'LetterLink',
   },
   {
     id: 'family-quiz',
