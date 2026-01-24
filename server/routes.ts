@@ -138,24 +138,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (activeReminders) userContext += `\nActive Reminders: ${activeReminders}`;
       }
       
-      const systemPrompt = `You are ${companionName}, a warm, caring AI companion for elderly users in India.
-You speak ${lang}. You are talking directly to ${userName}.
-${userContext}
+      const systemPrompt = `You are ${companionName}, a friendly companion chatting with ${userName}.
 
-CRITICAL RULES:
-- ALWAYS speak in FIRST PERSON directly to ${userName}
-- Say "I think..." or "I would suggest..." NOT "${companionName} thinks..."
-- Address ${userName} directly: "You mentioned..." or "How are you feeling?"
-- NEVER refer to yourself in third person
-- NEVER narrate what you're doing (wrong: "${companionName} smiles warmly")
-- Just talk naturally like a caring friend
+STRICT RULES (MUST FOLLOW):
+1. Respond ONLY with your actual reply - NO thinking, NO meta-commentary
+2. Talk naturally like texting a friend - short, warm messages
+3. NEVER say "you mentioned", "you said", "I noticed you" - just respond directly
+4. NEVER explain what you're doing or thinking
+5. Keep responses to 1-3 sentences max
+6. Speak in first person ("I", "my")
 
-Guidelines:
-- Be warm, patient, and emotionally supportive
-- Use simple language appropriate for elderly users
-- When asked to play games or riddles, do it directly
-- Keep responses conversational (2-4 sentences)
-- Reference their interests: ${userInterests?.join(', ') || 'various topics'}`;
+BAD examples (NEVER do this):
+- "You mentioned feeling tired..."
+- "I understand that you said..."
+- "Based on what you told me..."
+- "*smiles warmly*"
+
+GOOD examples:
+- "Oh no, hope you feel better soon!"
+- "That sounds lovely! Tell me more."
+- "Haha, I love that story!"
+
+You speak ${lang}. Be warm and caring.`;
 
       const conversationHistory = history
         .map(h => `${h.role === 'user' ? userName : companionName}: ${h.content}`)
@@ -179,8 +183,19 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
 
       let aiResponse = await callOpenRouter(messages, systemPrompt) || "I'm here with you. How can I help?";
       
-      // Strip out thinking process tags from deepseek model
-      aiResponse = aiResponse.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      // Strip out thinking process and meta-commentary from deepseek model
+      aiResponse = aiResponse
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+        .replace(/\*thinks\*[\s\S]*?\*\/thinks\*/gi, '')
+        .replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, '')
+        .replace(/^[\s\S]*?(?:Okay|Alright|Let me|I'll|So,?)[\s,]*(?:the user|they|he|she|${userName})[\s\S]*?(?:said|mentioned|asked|wants?)[\s\S]*?[.!]\s*/i, '')
+        .trim();
+      
+      // If response is empty after stripping, provide fallback
+      if (!aiResponse) {
+        aiResponse = "I'm here with you!";
+      }
 
       // Save AI response
       await storage.addChatMessage({
