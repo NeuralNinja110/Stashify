@@ -90,8 +90,24 @@ export default function VoiceCompanionScreen() {
     }
   };
 
+  // Check if voice recording is supported
+  const isVoiceSupported = () => {
+    return typeof navigator !== 'undefined' && 
+           navigator.mediaDevices && 
+           typeof navigator.mediaDevices.getUserMedia === 'function';
+  };
+
   // Start recording using MediaRecorder
   const startRecording = async () => {
+    if (!isVoiceSupported()) {
+      Alert.alert(
+        'Voice Input Unavailable', 
+        'Voice recording is not supported in this browser. Please type your message instead.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream, {
@@ -163,7 +179,7 @@ export default function VoiceCompanionScreen() {
       setIsRecording(true);
     } catch (error) {
       console.error('Failed to start recording:', error);
-      Alert.alert('Permission Required', 'Please allow microphone access to use voice input.');
+      Alert.alert('Microphone Access', 'Could not access microphone. Please type your message instead.');
     }
   };
 
