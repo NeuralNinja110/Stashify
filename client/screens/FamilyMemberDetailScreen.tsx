@@ -125,19 +125,29 @@ export default function FamilyMemberDetailScreen() {
 
     setIsSaving(true);
     try {
-      await apiRequest('PATCH', `/api/family/${memberId}`, {
-        name: name.trim(),
-        relation,
-        side,
-        photoUri: photoUri || undefined,
-        association: association.trim() || undefined,
+      const url = new URL(`/api/family/${memberId}`, getApiUrl()).toString();
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          relation,
+          side,
+          photoUri: photoUri || undefined,
+          association: association.trim() || undefined,
+        }),
       });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to update');
+      }
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.goBack();
-    } catch (error) {
-      console.error('Failed to update family member:', error);
-      Alert.alert('Error', 'Failed to update family member. Please try again.');
+    } catch (error: any) {
+      console.error('Failed to update family member:', error?.message || error);
+      Alert.alert('Error', error?.message || 'Failed to update family member. Please try again.');
       setIsSaving(false);
     }
   };
