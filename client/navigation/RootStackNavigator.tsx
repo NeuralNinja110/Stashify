@@ -13,6 +13,7 @@ import RiddlesScreen from '@/screens/RiddlesScreen';
 import LeaderboardScreen from '@/screens/LeaderboardScreen';
 import AddMomentScreen from '@/screens/AddMomentScreen';
 import AddFamilyMemberScreen from '@/screens/AddFamilyMemberScreen';
+import FamilyMemberDetailScreen from '@/screens/FamilyMemberDetailScreen';
 import AddReminderScreen from '@/screens/AddReminderScreen';
 import { useScreenOptions } from '@/hooks/useScreenOptions';
 import { useAuth } from '@/context/AuthContext';
@@ -142,6 +143,13 @@ export default function RootStackNavigator() {
             component={AddFamilyMemberScreen}
             options={{
               title: 'Add Family Member',
+            }}
+          />
+          <Stack.Screen
+            name="FamilyMemberDetail"
+            component={FamilyMemberDetailScreen}
+            options={{
+              title: 'Edit Family Member',
             }}
           />
           <Stack.Screen
