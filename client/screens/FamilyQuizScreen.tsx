@@ -865,9 +865,6 @@ export default function FamilyQuizScreen() {
             <Ionicons name="person" size={40} color={colors.primary} />
           </View>
           <ThemedText style={styles.memberName}>{currentQuestion?.member1.name}</ThemedText>
-          <ThemedText style={[styles.memberRelation, { color: colors.textSecondary }]}>
-            (Your {currentQuestion?.member1.relation})
-          </ThemedText>
         </Animated.View>
 
         <View style={styles.connectionLine}>
@@ -879,9 +876,6 @@ export default function FamilyQuizScreen() {
             <Ionicons name="person" size={40} color={colors.accent} />
           </View>
           <ThemedText style={styles.memberName}>{currentQuestion?.member2.name}</ThemedText>
-          <ThemedText style={[styles.memberRelation, { color: colors.textSecondary }]}>
-            (Your {currentQuestion?.member2.relation})
-          </ThemedText>
         </Animated.View>
       </View>
 
