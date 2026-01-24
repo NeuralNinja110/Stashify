@@ -1,0 +1,408 @@
+📱 STASHIFY
+A Multiplayer Cognitive Game & Memory Companion for Elderly Care
+1️⃣ Vision & Philosophy
+
+Stashify is a non-medical, AI-assisted, multiplayer cognitive stimulation platform designed for seniors (60+) to:
+
+Preserve and strengthen memory, attention, reasoning, and language
+
+Reduce social isolation via multiplayer and AI companionship
+
+Provide emotionally intelligent reminiscence therapy–like experiences
+
+Generate interpretable cognitive insights for users, families, and caregivers
+
+Core principle:
+“Gentle challenge + emotional safety + familiarity + repetition.”
+
+2️⃣ Target User Personas
+🎯 Primary
+
+Elderly individuals (60–90+)
+
+Seniors with Mild Cognitive Impairment (MCI)
+
+Users with low digital literacy
+
+👥 Secondary
+
+Family members
+
+Caregivers
+
+Elderly care centers
+
+3️⃣ Core Modules Overview
+Stashify App
+│
+├── Onboarding & Profile
+├── AI Voice Companions (Thunaivan / Thunaivi)
+├── Golden Moments (Voice Journal)
+├── Memory & Cognitive Games
+├── Multiplayer Games
+├── Family Tree Memory System
+├── Reminders & Daily Interaction
+├── Leaderboards & Social Layer
+├── Reports & Cognitive Insights (PDF)
+└── Accessibility & Localization
+
+4️⃣ Onboarding & User Profile
+🔐 Signup Flow (Senior-Friendly)
+
+Name
+
+4–6 digit PIN
+
+Date of Birth
+
+Gender
+
+Language (English / Tamil)
+
+Interest Topics (family, travel, food, music, spirituality, etc.)
+
+📌 Design Choices
+
+One question per screen
+
+Voice narration for every input
+
+Large tappable cards (not forms)
+
+📦 Stored Securely (Supabase)
+
+users
+
+preferences
+
+language_settings
+
+accessibility_settings
+
+5️⃣ AI Voice Companion System
+Thunaivan (Male) / Thunaivi (Female)
+🧠 Capabilities
+
+Conversational memory recall
+
+Gentle memory testing
+
+Emotional encouragement
+
+Context-aware responses
+
+Personalized prompts based on:
+
+Past Golden Moments
+
+Family Tree
+
+Game performance
+
+Interests
+
+🗣 Example Interaction
+
+“You once told me about your trip to Madurai. Do you remember who went with you?”
+
+Correct → Appreciation + reinforcement
+
+Incorrect → Guided recollection → Answer revealed
+
+📌 Tone Rules
+
+Never says “wrong”
+
+Uses phrases like:
+
+“Let’s think together”
+
+“That’s okay, I’ll help you remember”
+
+6️⃣ Golden Moments 🌟
+Voice-based Reminiscence Journal
+Flow
+
+Upload photo (optional)
+
+User narrates story via voice
+
+AI responds with:
+
+Emotion tagging
+
+Follow-up questions
+
+Validation & empathy
+
+Conversation stored
+
+Replay available anytime
+
+Cognitive Benefits
+
+Episodic memory reinforcement
+
+Emotional grounding
+
+Identity preservation
+
+📁 Data Stored
+
+Audio
+
+Transcript
+
+Emotion labels
+
+Memory tags (place, people, time)
+
+7️⃣ Daily AI Interaction (3 mins)
+
+Each app open triggers:
+
+A sweet memory reminder
+
+OR a gentle question
+
+OR a mini game / riddle
+
+Purpose:
+
+Routine formation
+
+Passive cognitive stimulation
+
+Emotional companionship
+
+8️⃣ Reminder System ⏰
+
+Voice-based or manual input
+
+Medicine / events / tasks
+
+Push notifications
+
+Voice confirmation:
+
+“I’ll remind you at 8 PM. Don’t worry.”
+
+Offline-safe with queued sync.
+
+9️⃣ Cognitive Games Suite 🧩
+🟦 A. Memory Grid Game
+
+Grid: 3×3 → 6×6
+
+Objects shown briefly
+
+Emoji cue → user taps cell
+
+Wrong attempts affect score
+
+Skills:
+
+Visual memory
+
+Spatial recall
+
+Attention
+
+🟨 B. Quiz from Personal Memories
+
+Voice or MCQ
+
+Based on:
+
+Golden Moments
+
+Family Tree
+
+Past interactions
+
+Adaptive difficulty:
+
+Recall → Recognition → Assisted recall
+
+🟩 C. Family Tree Game 🌳
+Setup
+
+Add photo
+
+Select relation (paternal/maternal/friend/etc.)
+
+Name + DOB + association
+
+Visualization
+
+Simple tree layout
+
+Zoomable
+
+High contrast
+
+Quiz Modes
+
+Relations only
+
+DOB only
+
+Names only
+
+Mixed
+
+Skills:
+
+Semantic memory
+
+Association recall
+
+Long-term memory
+
+🟥 D. Word Chain (Live Multiplayer)
+
+Fill missing letters
+
+Time + accuracy based scoring
+
+Shared screen words
+
+Skills:
+
+Language
+
+Attention
+
+Processing speed
+
+🟪 E. Echo Chronicles (AI / Multiplayer)
+
+Repeat sequence + add new item:
+
+Fruits, cities, colors, etc.
+
+Supports:
+
+Team mode
+
+Voice replay assistance
+
+Visual cards
+
+Skills:
+
+Sequential memory
+
+Auditory processing
+
+Focus
+
+🟧 F. Voice Riddle Games
+
+Repeating riddles across days
+
+Memory recognition testing
+
+Gentle difficulty curve
+
+🔟 Multiplayer & Leaderboards 🏆
+Age-Grouped Pools
+
+50–55, 55–60 … 100–105
+
+Randomized pools (max 10 users)
+
+Scoring Factors:
+
+Accuracy
+
+Time
+
+Difficulty
+
+Consistency
+
+No public chat → Emojis + voice encouragement only.
+
+1️⃣1️⃣ Accessibility & Inclusivity ♿
+
+✔ Large buttons
+✔ Adjustable font size
+✔ High contrast mode
+✔ Minimal navigation
+✔ Voice-first UX
+✔ Tamil & English
+✔ No complex gestures
+
+1️⃣2️⃣ Reports & Cognitive Insights 📊
+Auto-generated PDF Profile
+
+Includes:
+
+Game-wise performance
+
+Memory type analysis:
+
+Short-term
+
+Long-term
+
+Working memory
+
+Trend graphs
+
+Strengths & improvement areas
+
+AI-written SWOT-style analysis
+
+Personalized improvement suggestions
+
+📄 Shareable with family / caregivers
+
+1️⃣3️⃣ Technical Architecture
+Frontend
+
+React Native
+
+Context API
+
+Expo Audio & Speech
+
+Accessibility APIs
+
+Backend
+
+Supabase (Auth + DB + Storage)
+
+WebSockets / Firebase RTDB for multiplayer
+
+Edge functions for scoring & insights
+
+AI Layer
+
+Speech-to-text
+
+LLM-based memory reasoning
+
+Emotion tagging
+
+Adaptive difficulty engine
+
+Privacy & Security
+
+No medical claims
+
+Encrypted storage
+
+Minimal PII
+
+Opt-in data sharing
+
+1️⃣4️⃣ Why Stashify Is Strong 💡
+
+✔ Scientifically aligned (cognitive stimulation)
+✔ Emotionally intelligent
+✔ Not infantilizing seniors
+✔ Voice-first & culturally aware
+✔ Multiplayer without pressure
+✔ Caregiver-friendly insights

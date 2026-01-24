@@ -1,0 +1,124 @@
+We are building an app called stashify, which is an app game made in react native for Mobile Multiplayer Game Applications for Dementia Prevention and Elderly Care.
+
+Problem Overview 
+ 
+Dementia and age-related cognitive decline often lead to memory loss, 
+reduced mental agility, and social isolation among elderly individuals, especially 
+those living alone or in remote locations. Research indicates that regular 
+cognitive stimulation combined with social interaction can help slow cognitive 
+decline and improve emotional well-being. However, most mobile games today 
+are not designed to meet the accessibility, simplicity, and social needs of senior 
+citizens. 
+ 
+Challenge 
+ 
+Design and develop a mobile application–based multiplayer game that enables 
+elderly users to play together remotely, promoting cognitive health, emotional 
+well-being, and social connection. 
+ 
+Objective 
+ 
+Participants must build a mobile multiplayer game app that: 
+    •    Enhances cognitive skills such as memory, attention, reasoning, and 
+language 
+    •    Supports real-time or turn-based multiplayer gameplay for users in 
+different locations 
+    •    Encourages collaboration and friendly competition 
+    •    Is intuitive, accessible, and designed specifically for senior citizens 
+ 
+Key Requirements 
+ 
+The mobile game application should: 
+    •    Be developed using React Native for cross-platform support 
+    •    Run on Android and/or iOS 
+    •    Support real-time or asynchronous multiplayer modes 
+    •    Include cooperative or friendly competitive gameplay 
+    •    Provide senior-friendly interactions such as voice cues, simple chat, or 
+emojis 
+    •    Feature large buttons, high-contrast UI, readable fonts, and minimal 
+navigation 
+    •    Offer adaptive difficulty levels based on individual or group performance 
+    •    Ensure secure communication and user data privacy 
+    •    Perform reliably on low-bandwidth internet connections 
+ 
+Suggested Tech Stack 
+    •    Frontend: React Native 
+    •    Backend: Supabase  
+    •    Real-time Communication: WebSockets / Firebase Realtime Database 
+    •    Authentication: Simple PIN / OTP-based login 
+    •    State Management: Context API / Redux 
+(Teams may extend or modify the stack as needed.) 
+ 
+Example Game Ideas (For Reference) 
+    1.    Memory Match Together – Multiplayer card-matching game with adaptive difficulty  
+    2.    Word Recall Circle – Turn-based word association and storytelling game 
+    3.    Daily Routine Builder – Cooperative sequencing of familiar daily activities 
+    4.    Pattern & Rhythm Sync – Real-time visual or audio pattern repetition game  
+    5.    Virtual Board Games for Seniors – Simplified classic board games with 
+remote multiplayer 
+ 
+Target Users 
+ 
+    •    Elderly individuals (60+) 
+    •    Seniors with mild cognitive impairment (MCI) 
+    •    Caregivers, families, and elderly care centers 
+ 
+Constraints 
+ 
+    •    Must be non-medical and non-invasive 
+    •    Should be usable by people with limited digital literacy 
+    •    Must prioritize accessibility, inclusivity, and safety 
+
+Now the game are like:
+
+1. We have signing up section where we ask for Name, PIN,  DoB, Gender, Language, and then list down topics and they can select the interested topics.
+These are stored properly.
+
+2. Generally we have Golden Moments Option, where we have a section to upload pictures and then through voice the user tells the story and the agent replies with emotion and they have a conversation and end. This data is also saved.
+
+3. Then we have a general voice agent called thunaivan (male) /thunaivi (female) based on gender of the user giving voice support and has access to all data and helps user to remember things about earlier and tests the same if right it appreciates, if wrong it helps to recollect and finally tells the answer.
+
+4. There is a quiz section based on these memories it can be taken either by voice or by selecting options as well.
+
+5. Golden Moments section acts like voice journal place where the user can hear their conversation.
+
+6. The user can set remainders to set for tablets or anything either by voice or by clicking and typing and setting time. this pushes notification.
+
+7. Everyday when app is opened the Thunaivan/ Thunaivi reminds the user of a sweet memory or/and asks for something and interacts for around 3 minutes.
+
+8. Then we also have another game where we have a grid from 3*3 to 6*6 grids with 3 to 7 objects shown for sometime and hidden in some cells, then emoji of that particular item is shown and the user should select the cell it is in and the number of wrong steps determines the score.
+
+9. There is a leaderboard with 10 members maximum of the same age group (50-55, 55-60.... 95-100, 100-105)
+
+10. The Thunaivan or thunaivi interacts to the user based on the interest intially set.
+
+11. Then THere is a family tree game, where the user can select/take photo, select relation like from options first paternal or maternal, then cousin, brother, sister, spouse... as any other relation or friend and then how the friend is associated to him. Then DoB of that character.
+
+The family tree visualization is shown, and the user can take up quiz where the quiz has setting whether it must only ask about relations, or only about DoB or only Name or Mixed of all.
+
+12. Multi Lingual Support is provided for English and Tamil. Accessibilty to adjust font size is also provided. 
+
+13. Every game has voice based instructions provided along with voice based encouraging phrases said out inbetween game.
+
+14. Memory game and Grid has leaderboard for a set of random 10 users of same age group and ranking and scores are given based on time, skill and difficulty.
+
+15. word chain game is there as live multiplayer, where a screen full of words are displayed and then a few words are used to complete the word chain with spaces. Users must place right letters in right places to complete the words, time and right place affect the score and leaderboard.
+
+16. Voice agent got some voice based games like riddles, where some riddles repeat and those riddles test the memory of the user.
+
+17. Another AI player game:  Echo Chronicles
+Game Mechanic: Players take turns saying items from a category (fruits, cities, colors). Each player must repeat ALL previous items in order before adding their own.Cognitive Benefits:
+
+Sequential memory and recall
+Auditory processing
+Attention and concentration
+Senior-Friendly Features:
+
+Voice prompts repeat previous items if needed
+Visual word cards appear for support
+Adjustable speed and difficulty
+Can be played in teams for support.
+
+
+There can be other games too but all games must ensure to help in gaining memory power and prevent dementia in all aspects including memory.
+A detailed report of the User is available in the profile section as pdf to upload with through participation and results of these games the report is crafted in detail testing multiple stuffs including memory and everything else in multiple aspects. Also previous game history and results are available along with each result and personalized insight or comment by the ai system on how to improve and how is good, like a SWOT analysis. even the report must be in detailed completely understanding and interpreting everything.
