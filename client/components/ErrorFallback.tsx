@@ -8,11 +8,9 @@ import {
   Text,
   Modal,
   Image,
+  Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
 import { Colors, Spacing, BorderRadius, Fonts } from '@/constants/theme';
 
 const splashIcon = require('../../assets/images/splash-icon.png');
@@ -24,7 +22,7 @@ export type ErrorFallbackProps = {
 
 export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
   const theme = Colors.light;
-  const insets = useSafeAreaInsets();
+  const insets = { top: Platform.OS === 'ios' ? 44 : 24, bottom: Platform.OS === 'ios' ? 34 : 0 };
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const handleRestart = async () => {
