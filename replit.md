@@ -58,7 +58,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Third-Party Services
 - **Supabase:** Configured for backend services (auth storage adapter ready)
-- **Google Generative AI:** `@google/genai` for AI companion responses
+- **OpenRouter:** Free AI chat using `nvidia/nemotron-3-nano-30b-a3b:free` model
+- **OpenAI (via Replit AI Integrations):** Speech-to-text transcription using `gpt-4o-mini-transcribe`
 
 ### Key Expo Modules
 - `expo-speech` - Text-to-speech for voice companion
@@ -74,6 +75,9 @@ Preferred communication style: Simple, everyday language.
 - `EXPO_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `EXPO_PUBLIC_SUPABASE_KEY` - Supabase anon key
 - `EXPO_PUBLIC_DOMAIN` - API server domain for mobile client
+- `OPENROUTER_API_KEY` - OpenRouter API key for chat
+- `AI_INTEGRATIONS_OPENAI_API_KEY` - Auto-set by Replit AI Integrations
+- `AI_INTEGRATIONS_OPENAI_BASE_URL` - Auto-set by Replit AI Integrations
 
 ## Recent Changes (January 2026)
 
@@ -84,11 +88,13 @@ Preferred communication style: Simple, everyday language.
 - **RiddlesScreen**: Riddle-solving game with hints and streak bonuses
 - **LeaderboardScreen**: Age-grouped rankings (50-59, 60-69, 70-79, 80+) with game type filtering
 
-### AI Companion Integration
-- **VoiceCompanionScreen**: Full Gemini AI integration via `/api/chat` endpoint
+### AI Companion Integration (January 24, 2026)
+- **Chat: WORKING** - Using OpenRouter API with `nvidia/nemotron-3-nano-30b-a3b:free` model
+- **Voice Input: PENDING** - Using OpenAI Whisper via Replit AI Integrations for speech-to-text, expo-audio for recording
 - Personalized responses based on user name, gender, language, and interests
 - Chat history persisted to backend for conversation continuity
 - Text-to-speech support for responses
+- First-person conversational style (no thinking process shown)
 
 ### Golden Moments (Voice Journal)
 - **MomentsScreen**: Fetches real data from backend with pull-to-refresh
