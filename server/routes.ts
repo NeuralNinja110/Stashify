@@ -180,7 +180,10 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
       }));
       messages.push({ role: "user", content: message });
 
-      const aiResponse = await callOpenRouter(messages, systemPrompt) || "I'm here with you. How can I help?";
+      let aiResponse = await callOpenRouter(messages, systemPrompt) || "I'm here with you. How can I help?";
+      
+      // Strip out thinking process tags from deepseek model
+      aiResponse = aiResponse.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
       // Save AI response
       await storage.addChatMessage({
