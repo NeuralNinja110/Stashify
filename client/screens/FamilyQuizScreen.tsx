@@ -136,7 +136,9 @@ export default function FamilyQuizScreen() {
   const fetchFamilyMembers = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const response = await fetch(`${getApiUrl()}/api/family/${user.id}`);
+      const response = await fetch(
+        new URL(`/api/family/${user.id}`, getApiUrl()).toString()
+      );
       if (response.ok) {
         const data = await response.json();
         setFamilyMembers(data);
