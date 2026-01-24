@@ -99,6 +99,7 @@ export default function VoiceCompanionScreen() {
         return;
       }
 
+      await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
       setIsRecording(true);
     } catch (error) {
@@ -108,6 +109,8 @@ export default function VoiceCompanionScreen() {
   };
 
   const stopRecording = async () => {
+    if (!isRecording) return;
+    
     try {
       setIsRecording(false);
       setIsTranscribing(true);
