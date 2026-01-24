@@ -495,16 +495,38 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
 
   // ===== GAME DATA ROUTES =====
   
-  // Get riddles from AI
+  // Get riddles from AI based on user interests
   app.get("/api/games/riddles", async (req: Request, res: Response) => {
     try {
       const language = req.query.language as string || 'en';
       const difficulty = req.query.difficulty as string || 'easy';
+      const interestsParam = req.query.interests as string || '';
+      const interests = interestsParam ? interestsParam.split(',').filter(i => i.trim()) : [];
       
-      const prompt = `Generate 5 riddles suitable for elderly users (60+ years old) in ${language === 'ta' ? 'Tamil' : 'English'}.
+      let interestContext = '';
+      if (interests.length > 0) {
+        interestContext = `
+The user is interested in: ${interests.join(', ')}.
+Create riddles that relate to these interests when possible. For example:
+- If they like "music", include riddles about musical instruments or songs
+- If they like "cooking", include riddles about kitchen items or food
+- If they like "nature", include riddles about plants, animals, or weather
+- If they like "family", include riddles about relationships or home life
+Make at least 3 of the 5 riddles related to their interests.`;
+      }
+      
+      const prompt = `Generate 5 unique riddles suitable for elderly users (60+ years old) in ${language === 'ta' ? 'Tamil' : 'English'}.
 Difficulty: ${difficulty}
+${interestContext}
+
+Requirements:
+- Each riddle should be thought-provoking but solvable
+- Answers should be single words or short phrases (1-3 words)
+- Hints should be helpful but not give away the answer
+- Make them culturally relevant to Indian users
+- Keep questions clear and easy to understand
+
 Format as JSON array with objects containing: question, answer, hint
-Make them culturally relevant to Indian users.
 Only return the JSON array, no other text.`;
 
       const response = await ai.models.generateContent({
@@ -521,9 +543,11 @@ Only return the JSON array, no other text.`;
       console.error("Riddles error:", error);
       // Fallback riddles
       res.json([
-        { question: "What has hands but can't clap?", answer: "A clock", hint: "It tells time" },
-        { question: "What has a head and a tail but no body?", answer: "A coin", hint: "You use it to buy things" },
-        { question: "What gets wetter the more it dries?", answer: "A towel", hint: "You use it after bathing" },
+        { question: "What has hands but can't clap?", answer: "clock", hint: "It tells time" },
+        { question: "What has a head and a tail but no body?", answer: "coin", hint: "You use it to buy things" },
+        { question: "What gets wetter the more it dries?", answer: "towel", hint: "You use it after bathing" },
+        { question: "What can you catch but not throw?", answer: "cold", hint: "You might sneeze" },
+        { question: "What has keys but no locks?", answer: "piano", hint: "It makes music" },
       ]);
     }
   });

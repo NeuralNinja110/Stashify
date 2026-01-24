@@ -60,8 +60,11 @@ export default function RiddlesScreen() {
   const loadRiddles = async () => {
     setIsLoading(true);
     try {
+      const userInterests = user?.interests || [];
+      const interestsParam = userInterests.length > 0 ? `&interests=${encodeURIComponent(userInterests.join(','))}` : '';
+      
       const response = await fetch(
-        new URL(`/api/games/riddles?language=${user?.language || 'en'}&difficulty=easy`, getApiUrl()).toString()
+        new URL(`/api/games/riddles?language=${user?.language || 'en'}&difficulty=easy${interestsParam}`, getApiUrl()).toString()
       );
       if (response.ok) {
         const data = await response.json();
@@ -200,6 +203,14 @@ export default function RiddlesScreen() {
           >
             Solve riddles to exercise your brain! Each correct answer earns points. Build a streak for bonus points!
           </ThemedText>
+          {user?.interests && user.interests.length > 0 && (
+            <View style={[styles.personalizedBadge, { backgroundColor: theme.primary + '15' }]}>
+              <Feather name="star" size={16} color={theme.primary} />
+              <ThemedText type="small" style={{ color: theme.primary, marginLeft: Spacing.xs }}>
+                Personalized for your interests
+              </ThemedText>
+            </View>
+          )}
           <Button 
             onPress={startGame} 
             style={styles.startButton}
@@ -394,7 +405,15 @@ const styles = StyleSheet.create({
   },
   instructions: {
     textAlign: 'center',
-    marginBottom: Spacing['3xl'],
+    marginBottom: Spacing.lg,
+  },
+  personalizedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing['2xl'],
   },
   startButton: {
     minWidth: 200,
