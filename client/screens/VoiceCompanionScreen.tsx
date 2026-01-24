@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
 import { useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
-import * as FileSystem from 'expo-file-system';
+import { readAsStringAsync, EncodingType } from 'expo-file-system';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -130,8 +130,8 @@ export default function VoiceCompanionScreen() {
       
       if (uri) {
         // Read file as base64
-        const base64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
+        const base64 = await readAsStringAsync(uri, {
+          encoding: EncodingType.Base64,
         });
         
         // Determine mime type from URI
