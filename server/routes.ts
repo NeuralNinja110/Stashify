@@ -1,9 +1,31 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
-import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+// OpenRouter API helper
+async function callOpenRouter(messages: { role: string; content: string }[], systemPrompt?: string) {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "tngtech/deepseek-r1t-chimera:free",
+      messages: systemPrompt 
+        ? [{ role: "system", content: systemPrompt }, ...messages]
+        : messages,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || "OpenRouter API error");
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || "";
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -49,45 +71,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== SPEECH-TO-TEXT ROUTE =====
+  // Note: OpenRouter doesn't support audio input, so voice input is disabled
   app.post("/api/speech-to-text", async (req: Request, res: Response) => {
-    try {
-      const { audioBase64, language, mimeType } = req.body;
-      
-      if (!audioBase64) {
-        return res.status(400).json({ error: "Audio data is required" });
-      }
-
-      // Limit audio size to 10MB to prevent abuse
-      const maxSizeBytes = 10 * 1024 * 1024;
-      const audioSizeBytes = Buffer.from(audioBase64, 'base64').length;
-      if (audioSizeBytes > maxSizeBytes) {
-        return res.status(413).json({ error: "Audio file too large (max 10MB)" });
-      }
-
-      const lang = language === 'ta' ? 'Tamil' : 'English';
-      // Default to m4a (iOS default) but accept wav or other formats
-      const audioMimeType = mimeType || "audio/m4a";
-      
-      const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: [
-          {
-            inlineData: {
-              data: audioBase64,
-              mimeType: audioMimeType,
-            },
-          },
-          `Transcribe this audio accurately. The speaker is speaking in ${lang}. 
-Return ONLY the transcribed text, nothing else. If you cannot understand the audio, return an empty string.`,
-        ],
-      });
-
-      const transcription = response.text?.trim() || "";
-      res.json({ transcription });
-    } catch (error) {
-      console.error("Speech-to-text error:", error);
-      res.status(500).json({ error: "Failed to transcribe audio", transcription: "" });
-    }
+    res.status(501).json({ 
+      error: "Voice input not available with current AI provider. Please type your message.", 
+      transcription: "" 
+    });
   });
 
   // ===== AI COMPANION ROUTES =====
@@ -184,13 +173,14 @@ ${userName}: ${message}
 
 Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
 
-      // Single request - no retries to avoid quota issues
-      const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: fullPrompt,
-      });
+      // Build messages for OpenRouter
+      const messages = history.map(h => ({
+        role: h.role as string,
+        content: h.content,
+      }));
+      messages.push({ role: "user", content: message });
 
-      const aiResponse = response.text || "I'm here with you. How can I help?";
+      const aiResponse = await callOpenRouter(messages, systemPrompt) || "I'm here with you. How can I help?";
 
       // Save AI response
       await storage.addChatMessage({
