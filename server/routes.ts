@@ -525,29 +525,44 @@ Requirements:
 - Hints should be helpful but not give away the answer
 - Make them culturally relevant to Indian users
 - Keep questions clear and easy to understand
+- Make sure all 20 riddles are unique and different from each other
 
 Format as JSON array with objects containing: question, answer, hint
 Only return the JSON array, no other text.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-      });
-
-      const text = response.text || '[]';
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      const text = await callOpenRouter([{ role: "user", content: prompt }]);
+      const jsonMatch = text?.match(/\[[\s\S]*\]/);
       const riddles = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
       
-      res.json(riddles);
+      if (riddles.length >= 10) {
+        res.json(riddles);
+        return;
+      }
+      throw new Error("Not enough riddles generated");
     } catch (error) {
       console.error("Riddles error:", error);
-      // Fallback riddles
+      // Fallback riddles - 20 unique riddles
       res.json([
         { question: "What has hands but can't clap?", answer: "clock", hint: "It tells time" },
         { question: "What has a head and a tail but no body?", answer: "coin", hint: "You use it to buy things" },
         { question: "What gets wetter the more it dries?", answer: "towel", hint: "You use it after bathing" },
         { question: "What can you catch but not throw?", answer: "cold", hint: "You might sneeze" },
         { question: "What has keys but no locks?", answer: "piano", hint: "It makes music" },
+        { question: "What has one eye but can't see?", answer: "needle", hint: "Used for sewing" },
+        { question: "What goes up but never comes down?", answer: "age", hint: "Everyone gets older" },
+        { question: "What has a neck but no head?", answer: "bottle", hint: "You drink from it" },
+        { question: "What can travel around the world while staying in a corner?", answer: "stamp", hint: "Used for mail" },
+        { question: "What has teeth but cannot bite?", answer: "comb", hint: "Used for hair" },
+        { question: "What has a face and two hands but no arms or legs?", answer: "clock", hint: "Hangs on the wall" },
+        { question: "What building has the most stories?", answer: "library", hint: "Full of books" },
+        { question: "What can you break without touching it?", answer: "promise", hint: "Made with words" },
+        { question: "What has a thumb and four fingers but is not alive?", answer: "glove", hint: "Worn on hands" },
+        { question: "What gets smaller every time it takes a bath?", answer: "soap", hint: "Makes bubbles" },
+        { question: "What has legs but doesn't walk?", answer: "table", hint: "You eat on it" },
+        { question: "What is full of holes but still holds water?", answer: "sponge", hint: "Used for cleaning" },
+        { question: "What can you hold without ever touching it?", answer: "breath", hint: "You do it every moment" },
+        { question: "What has ears but cannot hear?", answer: "corn", hint: "A vegetable" },
+        { question: "What comes once in a minute, twice in a moment, but never in a thousand years?", answer: "letter m", hint: "Look at the spelling" },
       ]);
     }
   });
