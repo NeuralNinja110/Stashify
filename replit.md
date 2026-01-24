@@ -77,6 +77,36 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (January 2026)
 
+### Game System Implementation
+- **4 Distinct Game Screens**: Memory Grid, Word Chain, Echo Chronicles, and Riddles all have unique game mechanics
+- **WordChainScreen**: Players continue word chain where each word starts with last letter of previous word
+- **EchoChroniclesScreen**: Story-sharing game with prompts to help seniors share memories
+- **RiddlesScreen**: Riddle-solving game with hints and streak bonuses
+- **LeaderboardScreen**: Age-grouped rankings (50-59, 60-69, 70-79, 80+) with game type filtering
+
+### AI Companion Integration
+- **VoiceCompanionScreen**: Full Gemini AI integration via `/api/chat` endpoint
+- Personalized responses based on user name, gender, language, and interests
+- Chat history persisted to backend for conversation continuity
+- Text-to-speech support for responses
+
+### Golden Moments (Voice Journal)
+- **MomentsScreen**: Fetches real data from backend with pull-to-refresh
+- **AddMomentScreen**: Saves moments to backend via POST /api/moments
+- Photo capture/selection and voice recording support
+
+### Backend API (50+ endpoints)
+- Full CRUD for moments, family members, reminders, game sessions
+- Game score submission and leaderboard aggregation by age groups
+- Gemini AI chat with conversation history
+- Word validation for Word Chain game
+- Dynamic riddle and story prompt generation
+
+### Navigation Updates
+- All game screens properly routed to their unique components
+- Leaderboard screen added to navigation stack
+- Full-screen modal presentation for immersive game experience
+
 ### Translation Key Fixes
 - Fixed translation key conflicts where tab labels used keys that overlapped with nested objects
 - Tab labels now use dedicated keys: `gamesTab`, `momentsTab`, `familyTab`, `profileTab`
