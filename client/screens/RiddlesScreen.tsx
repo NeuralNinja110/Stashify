@@ -6,6 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown, ZoomIn, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -15,12 +16,21 @@ import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { getApiUrl, apiRequest } from '@/lib/query-client';
 
-type GameState = 'ready' | 'playing' | 'answered' | 'gameOver';
+type GameState = 'ready' | 'playing' | 'answered' | 'roundComplete' | 'gameOver';
+
+const RIDDLES_PER_ROUND = 5;
+const RIDDLES_CACHE_KEY = 'stashify_riddles_cache';
 
 interface Riddle {
   question: string;
   answer: string;
   hint: string;
+}
+
+interface RiddlesCache {
+  date: string;
+  riddles: Riddle[];
+  usedIndices: number[];
 }
 
 export default function RiddlesScreen() {
@@ -32,15 +42,17 @@ export default function RiddlesScreen() {
 
   const [gameState, setGameState] = useState<GameState>('ready');
   const [riddles, setRiddles] = useState<Riddle[]>([]);
-  const [shuffledRiddles, setShuffledRiddles] = useState<Riddle[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [roundRiddles, setRoundRiddles] = useState<Riddle[]>([]);
+  const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
+  const [usedIndices, setUsedIndices] = useState<number[]>([]);
   const [userAnswer, setUserAnswer] = useState('');
   const [showHint, setShowHint] = useState(false);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [completedRound, setCompletedRound] = useState(0);
+  const [roundNumber, setRoundNumber] = useState(1);
+  const [roundScore, setRoundScore] = useState(0);
 
   const cardScale = useSharedValue(1);
 
@@ -53,6 +65,8 @@ export default function RiddlesScreen() {
     return shuffled;
   };
 
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
+
   useEffect(() => {
     loadRiddles();
   }, []);
@@ -60,6 +74,19 @@ export default function RiddlesScreen() {
   const loadRiddles = async () => {
     setIsLoading(true);
     try {
+      // Check for cached riddles from today
+      const cachedData = await AsyncStorage.getItem(RIDDLES_CACHE_KEY);
+      if (cachedData) {
+        const cache: RiddlesCache = JSON.parse(cachedData);
+        if (cache.date === getTodayDate() && cache.riddles.length >= 10) {
+          setRiddles(cache.riddles);
+          setUsedIndices(cache.usedIndices || []);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Fetch new riddles from API
       const userInterests = user?.interests || [];
       const interestsParam = userInterests.length > 0 ? `&interests=${encodeURIComponent(userInterests.join(','))}` : '';
       
@@ -70,7 +97,13 @@ export default function RiddlesScreen() {
         const data = await response.json();
         if (data.length > 0) {
           setRiddles(data);
-          setShuffledRiddles(shuffleArray(data));
+          setUsedIndices([]);
+          // Cache the riddles for today
+          await AsyncStorage.setItem(RIDDLES_CACHE_KEY, JSON.stringify({
+            date: getTodayDate(),
+            riddles: data,
+            usedIndices: [],
+          }));
           setIsLoading(false);
           return;
         }
@@ -81,23 +114,72 @@ export default function RiddlesScreen() {
     setIsLoading(false);
   };
 
+  const getNextRoundRiddles = (allRiddles: Riddle[], used: number[]): { roundRiddles: Riddle[], newUsedIndices: number[] } => {
+    let availableIndices = allRiddles.map((_, i) => i).filter(i => !used.includes(i));
+    
+    // If not enough unused riddles, reset and reshuffle
+    if (availableIndices.length < RIDDLES_PER_ROUND) {
+      availableIndices = allRiddles.map((_, i) => i);
+      used = [];
+    }
+    
+    // Shuffle available indices and take first RIDDLES_PER_ROUND
+    const shuffledIndices = shuffleArray(availableIndices).slice(0, RIDDLES_PER_ROUND);
+    const roundRiddles = shuffledIndices.map(i => allRiddles[i]);
+    const newUsedIndices = [...used, ...shuffledIndices];
+    
+    return { roundRiddles, newUsedIndices };
+  };
+
+  const saveUsedIndices = async (indices: number[]) => {
+    try {
+      const cachedData = await AsyncStorage.getItem(RIDDLES_CACHE_KEY);
+      if (cachedData) {
+        const cache: RiddlesCache = JSON.parse(cachedData);
+        cache.usedIndices = indices;
+        await AsyncStorage.setItem(RIDDLES_CACHE_KEY, JSON.stringify(cache));
+      }
+    } catch (error) {
+      console.error('Failed to save used indices:', error);
+    }
+  };
+
   const startGame = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setShuffledRiddles(shuffleArray(riddles));
-    setCurrentIndex(0);
+    const { roundRiddles: newRoundRiddles, newUsedIndices } = getNextRoundRiddles(riddles, usedIndices);
+    setRoundRiddles(newRoundRiddles);
+    setUsedIndices(newUsedIndices);
+    saveUsedIndices(newUsedIndices);
+    setCurrentRoundIndex(0);
     setScore(0);
+    setRoundScore(0);
     setStreak(0);
     setUserAnswer('');
     setShowHint(false);
     setIsCorrect(null);
-    setCompletedRound(0);
+    setRoundNumber(1);
+    setGameState('playing');
+  };
+
+  const continueGame = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const { roundRiddles: newRoundRiddles, newUsedIndices } = getNextRoundRiddles(riddles, usedIndices);
+    setRoundRiddles(newRoundRiddles);
+    setUsedIndices(newUsedIndices);
+    saveUsedIndices(newUsedIndices);
+    setCurrentRoundIndex(0);
+    setRoundScore(0);
+    setUserAnswer('');
+    setShowHint(false);
+    setIsCorrect(null);
+    setRoundNumber(prev => prev + 1);
     setGameState('playing');
   };
 
   const checkAnswer = () => {
     if (!userAnswer.trim()) return;
 
-    const riddle = shuffledRiddles[currentIndex];
+    const riddle = roundRiddles[currentRoundIndex];
     if (!riddle) return;
     const userInput = userAnswer.trim().toLowerCase();
     const correctAnswer = riddle.answer.toLowerCase();
@@ -115,7 +197,9 @@ export default function RiddlesScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const hintPenalty = showHint ? 5 : 0;
       const streakBonus = streak * 5;
-      setScore(prev => prev + 20 - hintPenalty + streakBonus);
+      const pointsEarned = 20 - hintPenalty + streakBonus;
+      setScore(prev => prev + pointsEarned);
+      setRoundScore(prev => prev + pointsEarned);
       setStreak(prev => prev + 1);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -126,37 +210,32 @@ export default function RiddlesScreen() {
   };
 
   const nextRiddle = () => {
-    if (currentIndex < shuffledRiddles.length - 1) {
-      setCurrentIndex(prev => prev + 1);
+    if (currentRoundIndex < RIDDLES_PER_ROUND - 1) {
+      // More riddles in this round
+      setCurrentRoundIndex(prev => prev + 1);
       setUserAnswer('');
       setShowHint(false);
       setIsCorrect(null);
       setGameState('playing');
     } else {
-      // Completed all riddles in this round
-      setCompletedRound(prev => prev + 1);
-      // Reshuffle and start over
-      setShuffledRiddles(shuffleArray(riddles));
-      setCurrentIndex(0);
-      setUserAnswer('');
-      setShowHint(false);
-      setIsCorrect(null);
-      setGameState('playing');
+      // Completed this round of 5 riddles - ask if user wants to continue
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setGameState('roundComplete');
     }
   };
 
   const endGame = async () => {
     setGameState('gameOver');
 
+    const totalRiddlesSolved = (roundNumber - 1) * RIDDLES_PER_ROUND + currentRoundIndex + 1;
     try {
       await apiRequest('POST', '/api/games/scores', {
         userId: user?.id || 'guest',
         gameType: 'riddles',
         score,
-        level: currentIndex + 1,
-        accuracy: (score / ((currentIndex + 1) * 20)) * 100,
-        metadata: { riddlesSolved: currentIndex + 1 },
+        level: roundNumber,
+        accuracy: score > 0 ? (score / (totalRiddlesSolved * 20)) * 100 : 0,
+        metadata: { riddlesSolved: totalRiddlesSolved, rounds: roundNumber },
       });
     } catch (error) {
       console.error('Failed to save score:', error);
@@ -172,7 +251,7 @@ export default function RiddlesScreen() {
     transform: [{ scale: cardScale.value }],
   }));
 
-  const currentRiddle = shuffledRiddles[currentIndex] || { question: '', answer: '', hint: '' };
+  const currentRiddle = roundRiddles[currentRoundIndex] || { question: '', answer: '', hint: '' };
 
   return (
     <ThemedView
@@ -237,7 +316,7 @@ export default function RiddlesScreen() {
         <View style={styles.gameArea}>
           <View style={styles.progressBar}>
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              Riddle {currentIndex + 1} of {shuffledRiddles.length}{completedRound > 0 ? ` (Round ${completedRound + 1})` : ''}
+              Riddle {currentRoundIndex + 1} of {RIDDLES_PER_ROUND} (Round {roundNumber})
             </ThemedText>
             <View style={[styles.progressTrack, { backgroundColor: theme.backgroundSecondary }]}>
               <View
@@ -245,7 +324,7 @@ export default function RiddlesScreen() {
                   styles.progressFill,
                   {
                     backgroundColor: theme.primary,
-                    width: `${((currentIndex + 1) / shuffledRiddles.length) * 100}%`,
+                    width: `${((currentRoundIndex + 1) / RIDDLES_PER_ROUND) * 100}%`,
                   },
                 ]}
               />
@@ -345,11 +424,48 @@ export default function RiddlesScreen() {
                 )}
               </View>
               <Button onPress={nextRiddle} style={styles.nextButton}>
-                {currentIndex < shuffledRiddles.length - 1 ? 'Next Riddle' : 'New Round'}
+                {currentRoundIndex < RIDDLES_PER_ROUND - 1 ? 'Next Riddle' : 'Finish Round'}
               </Button>
             </Animated.View>
           )}
         </View>
+      )}
+
+      {gameState === 'roundComplete' && (
+        <Animated.View entering={ZoomIn.duration(400)} style={styles.roundCompleteState}>
+          <Feather name="award" size={64} color={theme.primary} />
+          <ThemedText type="h2" style={[styles.roundCompleteTitle, { color: theme.primary }]}>
+            Round {roundNumber} Complete!
+          </ThemedText>
+          <View style={[styles.roundScoreCard, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.roundScoreRow}>
+              <ThemedText type="body" style={{ color: theme.textSecondary }}>Round Score</ThemedText>
+              <ThemedText type="h3">{roundScore}</ThemedText>
+            </View>
+            <View style={styles.roundScoreRow}>
+              <ThemedText type="body" style={{ color: theme.textSecondary }}>Total Score</ThemedText>
+              <ThemedText type="h3" style={{ color: theme.primary }}>{score}</ThemedText>
+            </View>
+            <View style={styles.roundScoreRow}>
+              <ThemedText type="body" style={{ color: theme.textSecondary }}>Current Streak</ThemedText>
+              <ThemedText type="h3">{streak}</ThemedText>
+            </View>
+          </View>
+          <ThemedText type="body" style={[styles.continuePrompt, { color: theme.textSecondary }]}>
+            Ready for another round of 5 riddles?
+          </ThemedText>
+          <View style={styles.roundCompleteButtons}>
+            <Button onPress={continueGame} style={styles.continueButton}>
+              Continue Playing
+            </Button>
+            <Button
+              onPress={endGame}
+              style={[styles.stopButton, { backgroundColor: theme.backgroundSecondary }]}
+            >
+              I'm Done
+            </Button>
+          </View>
+        </Animated.View>
       )}
 
       {gameState === 'gameOver' && (
@@ -361,7 +477,7 @@ export default function RiddlesScreen() {
             {t('games.score')}: {score}
           </ThemedText>
           <ThemedText type="body" style={[styles.riddlesSolved, { color: theme.textSecondary }]}>
-            You solved {currentIndex + 1} riddles
+            You completed {roundNumber} round{roundNumber > 1 ? 's' : ''} ({roundNumber * RIDDLES_PER_ROUND} riddles)
           </ThemedText>
           <View style={styles.gameOverButtons}>
             <Button onPress={startGame} style={styles.playAgainButton}>
@@ -516,4 +632,36 @@ const styles = StyleSheet.create({
   },
   playAgainButton: {},
   exitGameButton: {},
+  roundCompleteState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing['2xl'],
+  },
+  roundCompleteTitle: {
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  roundScoreCard: {
+    width: '100%',
+    padding: Spacing.xl,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  roundScoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  continuePrompt: {
+    textAlign: 'center',
+    marginBottom: Spacing.xl,
+  },
+  roundCompleteButtons: {
+    gap: Spacing.md,
+    width: '100%',
+  },
+  continueButton: {},
+  stopButton: {},
 });
