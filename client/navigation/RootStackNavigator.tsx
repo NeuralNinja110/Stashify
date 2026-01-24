@@ -16,6 +16,7 @@ import AddMomentScreen from '@/screens/AddMomentScreen';
 import AddFamilyMemberScreen from '@/screens/AddFamilyMemberScreen';
 import FamilyMemberDetailScreen from '@/screens/FamilyMemberDetailScreen';
 import AddReminderScreen from '@/screens/AddReminderScreen';
+import MomentDetailScreen from '@/screens/MomentDetailScreen';
 import { useScreenOptions } from '@/hooks/useScreenOptions';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -137,6 +138,13 @@ export default function RootStackNavigator() {
             component={AddMomentScreen}
             options={{
               title: 'Add Memory',
+            }}
+          />
+          <Stack.Screen
+            name="MomentDetail"
+            component={MomentDetailScreen}
+            options={{
+              headerShown: false,
             }}
           />
           <Stack.Screen
