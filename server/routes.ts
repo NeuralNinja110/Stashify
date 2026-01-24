@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 
-// OpenRouter API helper
+// OpenRouter API helper - using Llama 3.2 for natural conversation
 async function callOpenRouter(messages: { role: string; content: string }[], systemPrompt?: string) {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -11,7 +11,7 @@ async function callOpenRouter(messages: { role: string; content: string }[], sys
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "tngtech/deepseek-r1t-chimera:free",
+      model: "meta-llama/llama-3.2-3b-instruct:free",
       messages: systemPrompt 
         ? [{ role: "system", content: systemPrompt }, ...messages]
         : messages,
@@ -198,28 +198,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (activeReminders) userContext += `\nActive Reminders: ${activeReminders}`;
       }
       
-      const systemPrompt = `You are ${companionName}, a friendly companion chatting with ${userName}.
+      const systemPrompt = `You are ${companionName}, chatting with your friend ${userName}.
 
-STRICT RULES (MUST FOLLOW):
-1. Respond ONLY with your actual reply - NO thinking, NO meta-commentary
-2. Talk naturally like texting a friend - short, warm messages
-3. NEVER say "you mentioned", "you said", "I noticed you" - just respond directly
-4. NEVER explain what you're doing or thinking
-5. Keep responses to 1-3 sentences max
-6. Speak in first person ("I", "my")
+CRITICAL - YOU MUST:
+- Speak AS ${companionName} in FIRST PERSON (I, me, my)
+- Reply directly to ${userName} like a warm friend texting
+- Keep replies SHORT (1-2 sentences)
+- Be warm, caring, and natural
 
-BAD examples (NEVER do this):
-- "You mentioned feeling tired..."
-- "I understand that you said..."
-- "Based on what you told me..."
-- "*smiles warmly*"
+NEVER DO THIS:
+- Never use third person ("the user", "${userName} said", "Thunaivan replies")
+- Never narrate actions ("*smiles*", "*nods*")
+- Never say "you mentioned" or "based on what you said"
+- Never explain your thinking process
 
-GOOD examples:
-- "Oh no, hope you feel better soon!"
-- "That sounds lovely! Tell me more."
-- "Haha, I love that story!"
+EXAMPLES OF CORRECT REPLIES:
+- "Hi ${userName}! How are you today?"
+- "Oh that's wonderful! Tell me more."
+- "I'm so happy to hear that!"
+- "Aww, I hope you feel better soon."
 
-You speak ${lang}. Be warm and caring.`;
+Language: ${lang}. Now respond naturally:`;
 
       const conversationHistory = history
         .map(h => `${h.role === 'user' ? userName : companionName}: ${h.content}`)
@@ -243,13 +242,21 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
 
       let aiResponse = await callOpenRouter(messages, systemPrompt) || "I'm here with you. How can I help?";
       
-      // Strip out thinking process and meta-commentary from deepseek model
+      // Clean up any unwanted patterns
       aiResponse = aiResponse
+        // Remove thinking tags
         .replace(/<think>[\s\S]*?<\/think>/gi, '')
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
         .replace(/\*thinks\*[\s\S]*?\*\/thinks\*/gi, '')
         .replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, '')
-        .replace(/^[\s\S]*?(?:Okay|Alright|Let me|I'll|So,?)[\s,]*(?:the user|they|he|she|${userName})[\s\S]*?(?:said|mentioned|asked|wants?)[\s\S]*?[.!]\s*/i, '')
+        // Remove third-person narration patterns
+        .replace(/^(Thunaivan|Thunaivi)\s*(says?|replies?|responds?|would say|should say)[:\s]*/gi, '')
+        .replace(/^(The user|They|He|She)\s*(said|mentioned|asked|wants?)[:\s]*.+?[.!]\s*/gi, '')
+        .replace(/^(Here'?s?|This is)\s*(my|the)\s*response[:\s]*/gi, '')
+        // Remove action narration
+        .replace(/\*[^*]+\*/g, '')
+        // Remove quotes if the whole response is quoted
+        .replace(/^["'](.+)["']$/s, '$1')
         .trim();
       
       // If response is empty after stripping, provide fallback
