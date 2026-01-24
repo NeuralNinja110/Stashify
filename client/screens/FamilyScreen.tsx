@@ -3,7 +3,7 @@ import { StyleSheet, View, FlatList, RefreshControl } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +27,7 @@ export default function FamilyScreen() {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const { user } = useAuth();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<any>();
 
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,11 +67,21 @@ export default function FamilyScreen() {
   };
 
   const handleAddMember = () => {
-    navigation.navigate('AddFamilyMember');
+    const rootNav = navigation.getParent();
+    if (rootNav) {
+      rootNav.navigate('AddFamilyMember');
+    } else {
+      navigation.navigate('AddFamilyMember');
+    }
   };
 
   const handleMemberPress = (member: FamilyMember) => {
-    navigation.navigate('FamilyMemberDetail', { memberId: member.id });
+    const rootNav = navigation.getParent();
+    if (rootNav) {
+      rootNav.navigate('FamilyMemberDetail', { memberId: member.id });
+    } else {
+      navigation.navigate('FamilyMemberDetail', { memberId: member.id });
+    }
   };
 
   const renderMember = ({ item, index }: { item: FamilyMember; index: number }) => (

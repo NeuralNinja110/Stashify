@@ -82,19 +82,21 @@ export function FamilyMemberCard({ member, onPress }: FamilyMemberCardProps) {
           {member.name}
         </ThemedText>
         <View style={styles.relationRow}>
-          <View
-            style={[
-              styles.sideBadge,
-              { backgroundColor: getSideColor() + '20' },
-            ]}
-          >
-            <ThemedText
-              type="caption"
-              style={[styles.sideText, { color: getSideColor() }]}
+          {member.side && (
+            <View
+              style={[
+                styles.sideBadge,
+                { backgroundColor: getSideColor() + '20' },
+              ]}
             >
-              {member.side.charAt(0).toUpperCase() + member.side.slice(1)}
-            </ThemedText>
-          </View>
+              <ThemedText
+                type="caption"
+                style={[styles.sideText, { color: getSideColor() }]}
+              >
+                {member.side.charAt(0).toUpperCase() + member.side.slice(1)}
+              </ThemedText>
+            </View>
+          )}
           <ThemedText
             type="small"
             style={[styles.relation, { color: theme.textSecondary }]}
