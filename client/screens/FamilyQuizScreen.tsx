@@ -43,81 +43,515 @@ interface QuizQuestion {
   options: string[];
 }
 
+type RelationType = 'parent' | 'child' | 'spouse' | 'sibling' | 'grandparent' | 'grandchild' | 
+  'uncle_aunt' | 'nephew_niece' | 'cousin' | 'parent_in_law' | 'child_in_law' | 'sibling_in_law' | 'friend' | 'other';
+
+interface RelationInfo {
+  type: RelationType;
+  gender?: 'male' | 'female';
+  side?: 'paternal' | 'maternal';
+}
+
+function normalizeRelation(relation: string): RelationInfo {
+  const r = relation.toLowerCase().trim();
+  
+  if (r === 'mom' || r === 'mother') return { type: 'parent', gender: 'female' };
+  if (r === 'dad' || r === 'father') return { type: 'parent', gender: 'male' };
+  if (r === 'son') return { type: 'child', gender: 'male' };
+  if (r === 'daughter') return { type: 'child', gender: 'female' };
+  if (r === 'husband') return { type: 'spouse', gender: 'male' };
+  if (r === 'wife') return { type: 'spouse', gender: 'female' };
+  if (r === 'brother') return { type: 'sibling', gender: 'male' };
+  if (r === 'sister') return { type: 'sibling', gender: 'female' };
+  if (r === 'grandfather' || r === 'grandpa') return { type: 'grandparent', gender: 'male' };
+  if (r === 'grandmother' || r === 'grandma') return { type: 'grandparent', gender: 'female' };
+  if (r === 'grandson') return { type: 'grandchild', gender: 'male' };
+  if (r === 'granddaughter') return { type: 'grandchild', gender: 'female' };
+  if (r === 'uncle') return { type: 'uncle_aunt', gender: 'male' };
+  if (r === 'aunt') return { type: 'uncle_aunt', gender: 'female' };
+  if (r === 'nephew') return { type: 'nephew_niece', gender: 'male' };
+  if (r === 'niece') return { type: 'nephew_niece', gender: 'female' };
+  if (r === 'cousin') return { type: 'cousin' };
+  if (r === 'father-in-law') return { type: 'parent_in_law', gender: 'male' };
+  if (r === 'mother-in-law') return { type: 'parent_in_law', gender: 'female' };
+  if (r === 'son-in-law') return { type: 'child_in_law', gender: 'male' };
+  if (r === 'daughter-in-law') return { type: 'child_in_law', gender: 'female' };
+  if (r === 'brother-in-law') return { type: 'sibling_in_law', gender: 'male' };
+  if (r === 'sister-in-law') return { type: 'sibling_in_law', gender: 'female' };
+  if (r === 'friend') return { type: 'friend' };
+  
+  return { type: 'other' };
+}
+
 function getRelationBetween(member1: FamilyMember, member2: FamilyMember): string {
-  const r1 = member1.relation.toLowerCase();
-  const r2 = member2.relation.toLowerCase();
+  const rel1 = normalizeRelation(member1.relation);
+  const rel2 = normalizeRelation(member2.relation);
+  const name1 = member1.name;
+  const name2 = member2.name;
   
-  if ((r1 === 'father' || r1 === 'dad') && (r2 === 'mother' || r2 === 'mom')) {
-    return `${member1.name} is ${member2.name}'s Husband`;
-  }
-  if ((r1 === 'mother' || r1 === 'mom') && (r2 === 'father' || r2 === 'dad')) {
-    return `${member1.name} is ${member2.name}'s Wife`;
-  }
-  
-  if ((r1 === 'father' || r1 === 'dad' || r1 === 'mother' || r1 === 'mom') && r2 === 'son') {
-    return `${member2.name} is ${member1.name}'s Son`;
-  }
-  if ((r1 === 'father' || r1 === 'dad' || r1 === 'mother' || r1 === 'mom') && r2 === 'daughter') {
-    return `${member2.name} is ${member1.name}'s Daughter`;
-  }
-  if (r1 === 'son' && (r2 === 'father' || r2 === 'dad')) {
-    return `${member2.name} is ${member1.name}'s Father`;
-  }
-  if (r1 === 'son' && (r2 === 'mother' || r2 === 'mom')) {
-    return `${member2.name} is ${member1.name}'s Mother`;
-  }
-  if (r1 === 'daughter' && (r2 === 'father' || r2 === 'dad')) {
-    return `${member2.name} is ${member1.name}'s Father`;
-  }
-  if (r1 === 'daughter' && (r2 === 'mother' || r2 === 'mom')) {
-    return `${member2.name} is ${member1.name}'s Mother`;
+  if (rel1.type === 'parent' && rel2.type === 'parent') {
+    if (rel1.gender === 'male' && rel2.gender === 'female') {
+      return `${name1} is ${name2}'s Husband`;
+    }
+    if (rel1.gender === 'female' && rel2.gender === 'male') {
+      return `${name1} is ${name2}'s Wife`;
+    }
+    return `${name1} and ${name2} are Spouses`;
   }
   
-  if (r1 === 'brother' && r2 === 'brother') {
-    return `${member1.name} and ${member2.name} are Brothers`;
-  }
-  if (r1 === 'sister' && r2 === 'sister') {
-    return `${member1.name} and ${member2.name} are Sisters`;
-  }
-  if ((r1 === 'brother' && r2 === 'sister') || (r1 === 'sister' && r2 === 'brother')) {
-    return `${member1.name} and ${member2.name} are Siblings`;
-  }
-  
-  if ((r1 === 'grandfather' || r1 === 'grandpa') && (r2 === 'grandmother' || r2 === 'grandma')) {
-    return `${member1.name} is ${member2.name}'s Husband`;
-  }
-  if ((r1 === 'grandmother' || r1 === 'grandma') && (r2 === 'grandfather' || r2 === 'grandpa')) {
-    return `${member1.name} is ${member2.name}'s Wife`;
+  if (rel1.type === 'child' && rel2.type === 'child') {
+    if (rel1.gender === 'male' && rel2.gender === 'male') {
+      return `${name1} and ${name2} are Brothers`;
+    }
+    if (rel1.gender === 'female' && rel2.gender === 'female') {
+      return `${name1} and ${name2} are Sisters`;
+    }
+    return `${name1} and ${name2} are Siblings`;
   }
   
-  if ((r1 === 'grandfather' || r1 === 'grandpa' || r1 === 'grandmother' || r1 === 'grandma') && 
-      (r2 === 'father' || r2 === 'dad')) {
-    return `${member2.name} is ${member1.name}'s Son`;
-  }
-  if ((r1 === 'grandfather' || r1 === 'grandpa' || r1 === 'grandmother' || r1 === 'grandma') && 
-      (r2 === 'mother' || r2 === 'mom')) {
-    return `${member2.name} is ${member1.name}'s Daughter-in-law`;
-  }
-  
-  if ((r1 === 'uncle') && (r2 === 'aunt')) {
-    return `${member1.name} is ${member2.name}'s Husband`;
-  }
-  if ((r1 === 'aunt') && (r2 === 'uncle')) {
-    return `${member1.name} is ${member2.name}'s Wife`;
+  if (rel1.type === 'sibling' && rel2.type === 'sibling') {
+    if (rel1.gender === 'male' && rel2.gender === 'male') {
+      return `${name1} and ${name2} are Brothers`;
+    }
+    if (rel1.gender === 'female' && rel2.gender === 'female') {
+      return `${name1} and ${name2} are Sisters`;
+    }
+    return `${name1} and ${name2} are Siblings`;
   }
   
-  if (r1 === 'cousin' && r2 === 'cousin') {
-    return `${member1.name} and ${member2.name} are Cousins`;
+  if (rel1.type === 'child' && rel2.type === 'parent') {
+    if (rel2.gender === 'male') {
+      return `${name2} is ${name1}'s Grandfather`;
+    }
+    if (rel2.gender === 'female') {
+      return `${name2} is ${name1}'s Grandmother`;
+    }
+    return `${name2} is ${name1}'s Grandparent`;
   }
   
-  if ((r1 === 'uncle' || r1 === 'aunt') && (r2 === 'father' || r2 === 'dad' || r2 === 'mother' || r2 === 'mom')) {
-    return `${member1.name} and ${member2.name} are Siblings`;
-  }
-  if ((r1 === 'father' || r1 === 'dad' || r1 === 'mother' || r1 === 'mom') && (r2 === 'uncle' || r2 === 'aunt')) {
-    return `${member1.name} and ${member2.name} are Siblings`;
+  if (rel1.type === 'parent' && rel2.type === 'child') {
+    if (rel2.gender === 'male') {
+      return `${name2} is ${name1}'s Grandson`;
+    }
+    if (rel2.gender === 'female') {
+      return `${name2} is ${name1}'s Granddaughter`;
+    }
+    return `${name2} is ${name1}'s Grandchild`;
   }
   
-  return `${member1.name} (your ${member1.relation}) & ${member2.name} (your ${member2.relation})`;
+  if (rel1.type === 'grandparent' && rel2.type === 'grandparent') {
+    if (rel1.gender === 'male' && rel2.gender === 'female') {
+      return `${name1} is ${name2}'s Husband`;
+    }
+    if (rel1.gender === 'female' && rel2.gender === 'male') {
+      return `${name1} is ${name2}'s Wife`;
+    }
+    return `${name1} and ${name2} are Spouses`;
+  }
+  
+  if (rel1.type === 'grandchild' && rel2.type === 'grandchild') {
+    if (rel1.gender === 'male' && rel2.gender === 'male') {
+      return `${name1} and ${name2} are Brothers`;
+    }
+    if (rel1.gender === 'female' && rel2.gender === 'female') {
+      return `${name1} and ${name2} are Sisters`;
+    }
+    return `${name1} and ${name2} are Siblings`;
+  }
+  
+  if (rel1.type === 'child' && rel2.type === 'grandparent') {
+    if (rel2.gender === 'male') {
+      return `${name2} is ${name1}'s Great-Grandfather`;
+    }
+    if (rel2.gender === 'female') {
+      return `${name2} is ${name1}'s Great-Grandmother`;
+    }
+    return `${name2} is ${name1}'s Great-Grandparent`;
+  }
+  
+  if (rel1.type === 'grandparent' && rel2.type === 'child') {
+    if (rel2.gender === 'male') {
+      return `${name2} is ${name1}'s Great-Grandson`;
+    }
+    if (rel2.gender === 'female') {
+      return `${name2} is ${name1}'s Great-Granddaughter`;
+    }
+    return `${name2} is ${name1}'s Great-Grandchild`;
+  }
+  
+  if (rel1.type === 'grandchild' && rel2.type === 'parent') {
+    if (rel2.gender === 'male') {
+      return `${name2} is ${name1}'s Great-Grandfather`;
+    }
+    if (rel2.gender === 'female') {
+      return `${name2} is ${name1}'s Great-Grandmother`;
+    }
+    return `${name2} is ${name1}'s Great-Grandparent`;
+  }
+  
+  if (rel1.type === 'parent' && rel2.type === 'grandchild') {
+    if (rel2.gender === 'male') {
+      return `${name2} is ${name1}'s Great-Grandson`;
+    }
+    if (rel2.gender === 'female') {
+      return `${name2} is ${name1}'s Great-Granddaughter`;
+    }
+    return `${name2} is ${name1}'s Great-Grandchild`;
+  }
+  
+  if (rel1.type === 'sibling' && rel2.type === 'parent') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Son`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Daughter`;
+    }
+    return `${name1} is ${name2}'s Child`;
+  }
+  
+  if (rel1.type === 'parent' && rel2.type === 'sibling') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Father`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Mother`;
+    }
+    return `${name1} is ${name2}'s Parent`;
+  }
+  
+  if (rel1.type === 'sibling' && rel2.type === 'child') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Uncle`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Aunt`;
+    }
+    return `${name1} is ${name2}'s Uncle/Aunt`;
+  }
+  
+  if (rel1.type === 'child' && rel2.type === 'sibling') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Nephew`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Niece`;
+    }
+    return `${name1} is ${name2}'s Nephew/Niece`;
+  }
+  
+  if (rel1.type === 'uncle_aunt' && rel2.type === 'uncle_aunt') {
+    if (rel1.gender === 'male' && rel2.gender === 'female') {
+      return `${name1} is ${name2}'s Husband`;
+    }
+    if (rel1.gender === 'female' && rel2.gender === 'male') {
+      return `${name1} is ${name2}'s Wife`;
+    }
+    return `${name1} and ${name2} are Siblings`;
+  }
+  
+  if (rel1.type === 'uncle_aunt' && rel2.type === 'parent') {
+    return `${name1} and ${name2} are Siblings`;
+  }
+  
+  if (rel1.type === 'parent' && rel2.type === 'uncle_aunt') {
+    return `${name1} and ${name2} are Siblings`;
+  }
+  
+  if (rel1.type === 'uncle_aunt' && rel2.type === 'grandparent') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Son`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Daughter`;
+    }
+    return `${name1} is ${name2}'s Child`;
+  }
+  
+  if (rel1.type === 'grandparent' && rel2.type === 'uncle_aunt') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Father`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Mother`;
+    }
+    return `${name1} is ${name2}'s Parent`;
+  }
+  
+  if (rel1.type === 'cousin' && rel2.type === 'cousin') {
+    return `${name1} and ${name2} are Cousins`;
+  }
+  
+  if (rel1.type === 'cousin' && rel2.type === 'uncle_aunt') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Son`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Daughter`;
+    }
+    return `${name1} is ${name2}'s Child`;
+  }
+  
+  if (rel1.type === 'uncle_aunt' && rel2.type === 'cousin') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Father`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Mother`;
+    }
+    return `${name1} is ${name2}'s Parent`;
+  }
+  
+  if (rel1.type === 'cousin' && rel2.type === 'parent') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Nephew`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Niece`;
+    }
+    return `${name1} is ${name2}'s Nephew/Niece`;
+  }
+  
+  if (rel1.type === 'parent' && rel2.type === 'cousin') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Uncle`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Aunt`;
+    }
+    return `${name1} is ${name2}'s Uncle/Aunt`;
+  }
+  
+  if (rel1.type === 'cousin' && rel2.type === 'grandparent') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Grandson`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Granddaughter`;
+    }
+    return `${name1} is ${name2}'s Grandchild`;
+  }
+  
+  if (rel1.type === 'grandparent' && rel2.type === 'cousin') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Grandfather`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Grandmother`;
+    }
+    return `${name1} is ${name2}'s Grandparent`;
+  }
+  
+  if (rel1.type === 'nephew_niece' && rel2.type === 'sibling') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Son`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Daughter`;
+    }
+    return `${name1} is ${name2}'s Child`;
+  }
+  
+  if (rel1.type === 'sibling' && rel2.type === 'nephew_niece') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Father`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Mother`;
+    }
+    return `${name1} is ${name2}'s Parent`;
+  }
+  
+  if (rel1.type === 'nephew_niece' && rel2.type === 'nephew_niece') {
+    return `${name1} and ${name2} are Cousins`;
+  }
+  
+  if (rel1.type === 'nephew_niece' && rel2.type === 'parent') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Grandson`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Granddaughter`;
+    }
+    return `${name1} is ${name2}'s Grandchild`;
+  }
+  
+  if (rel1.type === 'parent' && rel2.type === 'nephew_niece') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Grandfather`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Grandmother`;
+    }
+    return `${name1} is ${name2}'s Grandparent`;
+  }
+  
+  if (rel1.type === 'spouse' && rel2.type === 'parent') {
+    if (rel2.gender === 'male') {
+      return `${name2} is ${name1}'s Father-in-law`;
+    }
+    if (rel2.gender === 'female') {
+      return `${name2} is ${name1}'s Mother-in-law`;
+    }
+    return `${name2} is ${name1}'s Parent-in-law`;
+  }
+  
+  if (rel1.type === 'parent' && rel2.type === 'spouse') {
+    if (rel2.gender === 'male') {
+      return `${name2} is ${name1}'s Son-in-law`;
+    }
+    if (rel2.gender === 'female') {
+      return `${name2} is ${name1}'s Daughter-in-law`;
+    }
+    return `${name2} is ${name1}'s Child-in-law`;
+  }
+  
+  if (rel1.type === 'spouse' && rel2.type === 'sibling') {
+    if (rel2.gender === 'male') {
+      return `${name2} is ${name1}'s Brother-in-law`;
+    }
+    if (rel2.gender === 'female') {
+      return `${name2} is ${name1}'s Sister-in-law`;
+    }
+    return `${name2} is ${name1}'s Sibling-in-law`;
+  }
+  
+  if (rel1.type === 'sibling' && rel2.type === 'spouse') {
+    if (rel2.gender === 'male') {
+      return `${name2} is ${name1}'s Brother-in-law`;
+    }
+    if (rel2.gender === 'female') {
+      return `${name2} is ${name1}'s Sister-in-law`;
+    }
+    return `${name2} is ${name1}'s Sibling-in-law`;
+  }
+  
+  if (rel1.type === 'spouse' && rel2.type === 'child') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Father`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Mother`;
+    }
+    return `${name1} is ${name2}'s Parent`;
+  }
+  
+  if (rel1.type === 'child' && rel2.type === 'spouse') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Son`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Daughter`;
+    }
+    return `${name1} is ${name2}'s Child`;
+  }
+  
+  if (rel1.type === 'parent_in_law' && rel2.type === 'parent_in_law') {
+    if (rel1.gender === 'male' && rel2.gender === 'female') {
+      return `${name1} is ${name2}'s Husband`;
+    }
+    if (rel1.gender === 'female' && rel2.gender === 'male') {
+      return `${name1} is ${name2}'s Wife`;
+    }
+    return `${name1} and ${name2} are Spouses`;
+  }
+  
+  if (rel1.type === 'parent_in_law' && rel2.type === 'spouse') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Father`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Mother`;
+    }
+    return `${name1} is ${name2}'s Parent`;
+  }
+  
+  if (rel1.type === 'spouse' && rel2.type === 'parent_in_law') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Son`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Daughter`;
+    }
+    return `${name1} is ${name2}'s Child`;
+  }
+  
+  if (rel1.type === 'sibling_in_law' && rel2.type === 'sibling_in_law') {
+    return `${name1} and ${name2} are Co-Siblings-in-law`;
+  }
+  
+  if (rel1.type === 'sibling_in_law' && rel2.type === 'spouse') {
+    return `${name1} and ${name2} are Siblings`;
+  }
+  
+  if (rel1.type === 'spouse' && rel2.type === 'sibling_in_law') {
+    return `${name1} and ${name2} are Siblings`;
+  }
+  
+  if (rel1.type === 'sibling_in_law' && rel2.type === 'parent') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Son-in-law`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Daughter-in-law`;
+    }
+    return `${name1} is ${name2}'s Child-in-law`;
+  }
+  
+  if (rel1.type === 'parent' && rel2.type === 'sibling_in_law') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Father-in-law`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Mother-in-law`;
+    }
+    return `${name1} is ${name2}'s Parent-in-law`;
+  }
+  
+  if (rel1.type === 'child_in_law' && rel2.type === 'child') {
+    if (rel1.gender === 'male' && rel2.gender === 'female') {
+      return `${name1} is ${name2}'s Husband`;
+    }
+    if (rel1.gender === 'female' && rel2.gender === 'male') {
+      return `${name1} is ${name2}'s Wife`;
+    }
+    return `${name1} and ${name2} are Spouses`;
+  }
+  
+  if (rel1.type === 'child' && rel2.type === 'child_in_law') {
+    if (rel1.gender === 'male' && rel2.gender === 'female') {
+      return `${name1} is ${name2}'s Husband`;
+    }
+    if (rel1.gender === 'female' && rel2.gender === 'male') {
+      return `${name1} is ${name2}'s Wife`;
+    }
+    return `${name1} and ${name2} are Spouses`;
+  }
+  
+  if (rel1.type === 'child_in_law' && rel2.type === 'grandchild') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Father`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Mother`;
+    }
+    return `${name1} is ${name2}'s Parent`;
+  }
+  
+  if (rel1.type === 'grandchild' && rel2.type === 'child_in_law') {
+    if (rel1.gender === 'male') {
+      return `${name1} is ${name2}'s Son`;
+    }
+    if (rel1.gender === 'female') {
+      return `${name1} is ${name2}'s Daughter`;
+    }
+    return `${name1} is ${name2}'s Child`;
+  }
+  
+  if (rel1.type === 'friend' && rel2.type === 'friend') {
+    return `${name1} and ${name2} are Friends`;
+  }
+  
+  return `${name1} (your ${member1.relation}) & ${name2} (your ${member2.relation})`;
 }
 
 function generateOptions(member1: FamilyMember, member2: FamilyMember, correctRelation: string): string[] {
@@ -136,10 +570,26 @@ function generateOptions(member1: FamilyMember, member2: FamilyMember, correctRe
     `${member1.name} is ${member2.name}'s Aunt`,
     `${member1.name} is ${member2.name}'s Nephew`,
     `${member1.name} is ${member2.name}'s Niece`,
+    `${member1.name} is ${member2.name}'s Grandfather`,
+    `${member1.name} is ${member2.name}'s Grandmother`,
+    `${member1.name} is ${member2.name}'s Grandson`,
+    `${member1.name} is ${member2.name}'s Granddaughter`,
+    `${member1.name} is ${member2.name}'s Father-in-law`,
+    `${member1.name} is ${member2.name}'s Mother-in-law`,
+    `${member1.name} is ${member2.name}'s Son-in-law`,
+    `${member1.name} is ${member2.name}'s Daughter-in-law`,
+    `${member1.name} is ${member2.name}'s Brother-in-law`,
+    `${member1.name} is ${member2.name}'s Sister-in-law`,
+    `${member2.name} is ${member1.name}'s Grandfather`,
+    `${member2.name} is ${member1.name}'s Grandmother`,
+    `${member2.name} is ${member1.name}'s Grandson`,
+    `${member2.name} is ${member1.name}'s Granddaughter`,
     `${member1.name} and ${member2.name} are Cousins`,
     `${member1.name} and ${member2.name} are Siblings`,
     `${member1.name} and ${member2.name} are Brothers`,
     `${member1.name} and ${member2.name} are Sisters`,
+    `${member1.name} and ${member2.name} are Spouses`,
+    `${member1.name} and ${member2.name} are Friends`,
   ].filter(o => o !== correctRelation);
   
   const shuffled = wrongOptions.sort(() => Math.random() - 0.5);
