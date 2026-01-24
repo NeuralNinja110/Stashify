@@ -201,37 +201,52 @@ export default function MemoryGridScreen() {
   };
 
   const cellSize = useMemo(() => {
-    const gridPadding = Spacing.lg * 2;
-    const gap = Spacing.md;
+    const gridPadding = Spacing.xl * 2;
+    const gap = Spacing.sm;
     const availableWidth = SCREEN_WIDTH - gridPadding;
     const totalGaps = (gridSize - 1) * gap;
     return Math.floor((availableWidth - totalGaps) / gridSize);
   }, [gridSize]);
 
+  const emojiSize = useMemo(() => {
+    return Math.min(cellSize * 0.6, 48);
+  }, [cellSize]);
+
   const renderCell = (cell: GridCell) => (
-    <Pressable
+    <View
       key={cell.id}
-      onPress={() => handleCellPress(cell)}
       style={[
         styles.cell,
         {
           backgroundColor: cell.found
-            ? theme.success + '30'
+            ? theme.success + '20'
             : cell.revealed
-            ? theme.backgroundDefault
+            ? theme.primary + '10'
             : theme.backgroundSecondary,
           borderColor: cell.found ? theme.success : theme.border,
           width: cellSize,
           height: cellSize,
+          shadowColor: theme.text,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
         },
       ]}
     >
-      {(cell.revealed || cell.found) && cell.object ? (
-        <ThemedText style={[styles.cellEmoji, { fontSize: Math.max(cellSize * 0.5, 24) }]}>
-          {cell.object}
-        </ThemedText>
-      ) : null}
-    </Pressable>
+      <Pressable
+        onPress={() => handleCellPress(cell)}
+        style={styles.cellPressable}
+      >
+        {(cell.revealed || cell.found) && cell.object ? (
+          <ThemedText style={{ fontSize: emojiSize, lineHeight: emojiSize * 1.2 }}>
+            {cell.object}
+          </ThemedText>
+        ) : (
+          <View style={[styles.cellPlaceholder, { backgroundColor: theme.border + '40' }]} />
+        )}
+      </Pressable>
+    </View>
   );
 
   return (
@@ -445,13 +460,24 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   cell: {
     borderRadius: BorderRadius.lg,
     borderWidth: 2,
+    overflow: 'hidden',
+  },
+  cellPressable: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cellPlaceholder: {
+    width: 20,
+    height: 20,
+    borderRadius: BorderRadius.full,
   },
   cellEmoji: {
     fontSize: 32,
