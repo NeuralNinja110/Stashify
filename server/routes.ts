@@ -683,7 +683,7 @@ Only return the JSON array.`;
       }
 
       const memberInfo = familyMembers.map((m: any) => 
-        `${m.name} (${m.relationship}${m.birthDate ? ', born ' + m.birthDate : ''})`
+        `${m.name} (${m.relation}${m.association ? ', ' + m.association : ''})`
       ).join('; ');
 
       const prompt = `Generate 5 quiz questions about these family members for an elderly user in ${language === 'ta' ? 'Tamil' : 'English'}:
@@ -693,19 +693,21 @@ Questions should test memory of family relationships, names, and details.
 Format as JSON array of objects with: question, correctAnswer, options (array of 4 choices including correct answer)
 Only return the JSON array.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-      });
-
-      const text = response.text || '[]';
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      const text = await callOpenRouter([{ role: "user", content: prompt }]);
+      const jsonMatch = text?.match(/\[[\s\S]*\]/);
       const questions = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
       
-      res.json(questions);
+      if (questions.length >= 3) {
+        res.json(questions);
+        return;
+      }
+      throw new Error("Not enough questions generated");
     } catch (error) {
       console.error("Family quiz error:", error);
-      res.json([]);
+      res.json([
+        { question: "Who is your closest family member?", correctAnswer: "Think about who you see most often", options: ["Parent", "Sibling", "Child", "Spouse"] },
+        { question: "How many family members do you have saved?", correctAnswer: "Count them all", options: ["1-2", "3-5", "6-10", "More than 10"] },
+      ]);
     }
   });
 

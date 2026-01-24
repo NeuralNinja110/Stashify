@@ -6,6 +6,7 @@ import {
   Image,
   Pressable,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -20,7 +21,9 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Button } from '@/components/Button';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
+import { apiRequest } from '@/lib/query-client';
 
 const RELATIONS = [
   'Parent',
@@ -48,6 +51,7 @@ export default function AddFamilyMemberScreen() {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { user } = useAuth();
 
   const [name, setName] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -73,11 +77,23 @@ export default function AddFamilyMemberScreen() {
     if (!name.trim() || !relation) return;
 
     setIsSaving(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    setTimeout(() => {
+    try {
+      await apiRequest('POST', '/api/family', {
+        userId: user?.id,
+        name: name.trim(),
+        relation,
+        side,
+        photoUri: photoUri || undefined,
+        association: association.trim() || undefined,
+      });
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.goBack();
-    }, 1000);
+    } catch (error) {
+      console.error('Failed to save family member:', error);
+      Alert.alert('Error', 'Failed to save family member. Please try again.');
+      setIsSaving(false);
+    }
   };
 
   const canSave = name.trim() && relation;

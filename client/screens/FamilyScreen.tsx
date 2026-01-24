@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, FlatList } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, View, FlatList, RefreshControl } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
@@ -12,9 +12,11 @@ import { FamilyMemberCard } from '@/components/FamilyMemberCard';
 import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/LoadingSkeleton';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/context/AuthContext';
 import { Spacing } from '@/constants/theme';
 import { FamilyMember } from '@/types';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
+import { getApiUrl } from '@/lib/query-client';
 
 const emptyFamily = require('../../assets/images/empty-family.png');
 
@@ -24,10 +26,45 @@ export default function FamilyScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [members, setMembers] = useState<FamilyMember[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchMembers = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const response = await fetch(
+        new URL(`/api/family/${user.id}`, getApiUrl()).toString()
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setMembers(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch family members:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchMembers();
+    }, [fetchMembers])
+  );
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchMembers();
+  };
 
   const handleAddMember = () => {
     navigation.navigate('AddFamilyMember');
@@ -88,6 +125,13 @@ export default function FamilyScreen() {
         scrollIndicatorInsets={{ bottom: insets.bottom }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmpty}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+          />
+        }
       />
     </View>
   );
