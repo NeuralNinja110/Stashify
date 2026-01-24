@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, FlatList, TextInput, Pressable, Platform } from 'react-native';
+import { StyleSheet, View, FlatList, TextInput, Pressable, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import Animated, { FadeIn, FadeInDown, SlideInUp } from 'react-native-reanimated
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
+import { useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -36,6 +37,9 @@ export default function VoiceCompanionScreen() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   const companionName =
     user?.gender === 'female' ? t('companion.thunaivi') : t('companion.thunaivan');
@@ -87,17 +91,96 @@ export default function VoiceCompanionScreen() {
     }
   };
 
-  const handleVoicePress = () => {
+  const startRecording = async () => {
+    try {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      if (!status.granted) {
+        Alert.alert('Permission Required', 'Please grant microphone permission to use voice input.');
+        return;
+      }
+
+      audioRecorder.record();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      Alert.alert('Error', 'Failed to start recording. Please try again.');
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      setIsRecording(false);
+      setIsTranscribing(true);
+
+      await audioRecorder.stop();
+      
+      const uri = audioRecorder.uri;
+
+      if (uri) {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        
+        // Detect mime type from URI extension or blob type
+        let mimeType = blob.type || "audio/m4a";
+        if (uri.endsWith('.wav')) mimeType = "audio/wav";
+        else if (uri.endsWith('.m4a') || uri.endsWith('.aac')) mimeType = "audio/m4a";
+        else if (uri.endsWith('.mp3')) mimeType = "audio/mp3";
+        else if (uri.endsWith('.webm')) mimeType = "audio/webm";
+        
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64 = (reader.result as string).split(',')[1];
+          
+          try {
+            const transcribeResponse = await fetch(
+              new URL('/api/speech-to-text', getApiUrl()).toString(),
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  audioBase64: base64,
+                  language: user?.language || 'en',
+                  mimeType: mimeType,
+                }),
+              }
+            );
+
+            if (transcribeResponse.ok) {
+              const data = await transcribeResponse.json();
+              if (data.transcription && data.transcription.trim()) {
+                setInputText(data.transcription);
+                handleSendMessage(data.transcription);
+              } else {
+                Alert.alert('Voice Input', 'Could not understand the audio. Please try again or type your message.');
+              }
+            } else {
+              throw new Error('Transcription failed');
+            }
+          } catch (error) {
+            console.error('Transcription error:', error);
+            Alert.alert('Error', 'Failed to process voice. Please try typing instead.');
+          } finally {
+            setIsTranscribing(false);
+          }
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        setIsTranscribing(false);
+      }
+    } catch (error) {
+      console.error('Failed to stop recording:', error);
+      setIsRecording(false);
+      setIsTranscribing(false);
+    }
+  };
+
+  const handleVoicePress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsRecording(!isRecording);
     
-    if (!isRecording) {
-      // Simulating voice input - in production would use expo-av for real recording
-      setTimeout(() => {
-        setIsRecording(false);
-        // For now, prompt user to type - real implementation would transcribe audio
-        setInputText('');
-      }, 3000);
+    if (isRecording) {
+      await stopRecording();
+    } else {
+      await startRecording();
     }
   };
 
@@ -312,9 +395,17 @@ export default function VoiceCompanionScreen() {
             type="caption"
             style={{ color: theme.textSecondary, marginBottom: Spacing.md }}
           >
-            {isRecording ? t('companion.listening') : t('companion.tapToSpeak')}
+            {isTranscribing 
+              ? t('companion.processing', { defaultValue: 'Processing your voice...' })
+              : isRecording 
+                ? t('companion.listening') 
+                : t('companion.tapToSpeak')}
           </ThemedText>
-          <VoiceButton isRecording={isRecording} onPress={handleVoicePress} />
+          <VoiceButton 
+            isRecording={isRecording} 
+            onPress={handleVoicePress} 
+            disabled={isTranscribing || isLoading}
+          />
         </View>
       </Animated.View>
     </ThemedView>

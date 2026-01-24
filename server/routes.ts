@@ -48,6 +48,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== SPEECH-TO-TEXT ROUTE =====
+  app.post("/api/speech-to-text", async (req: Request, res: Response) => {
+    try {
+      const { audioBase64, language, mimeType } = req.body;
+      
+      if (!audioBase64) {
+        return res.status(400).json({ error: "Audio data is required" });
+      }
+
+      // Limit audio size to 10MB to prevent abuse
+      const maxSizeBytes = 10 * 1024 * 1024;
+      const audioSizeBytes = Buffer.from(audioBase64, 'base64').length;
+      if (audioSizeBytes > maxSizeBytes) {
+        return res.status(413).json({ error: "Audio file too large (max 10MB)" });
+      }
+
+      const lang = language === 'ta' ? 'Tamil' : 'English';
+      // Default to m4a (iOS default) but accept wav or other formats
+      const audioMimeType = mimeType || "audio/m4a";
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            inlineData: {
+              data: audioBase64,
+              mimeType: audioMimeType,
+            },
+          },
+          `Transcribe this audio accurately. The speaker is speaking in ${lang}. 
+Return ONLY the transcribed text, nothing else. If you cannot understand the audio, return an empty string.`,
+        ],
+      });
+
+      const transcription = response.text?.trim() || "";
+      res.json({ transcription });
+    } catch (error) {
+      console.error("Speech-to-text error:", error);
+      res.status(500).json({ error: "Failed to transcribe audio", transcription: "" });
+    }
+  });
+
   // ===== AI COMPANION ROUTES =====
   app.post("/api/chat", async (req: Request, res: Response) => {
     try {
@@ -64,25 +106,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: message,
       });
 
-      // Get chat history for context
-      const history = await storage.getChatHistory(userId, 10);
+      // Get extended chat history for better context
+      const history = await storage.getChatHistory(userId, 30);
+      
+      // Get user's game scores for context
+      const gameScores = await storage.getGameScores(userId);
+      const recentGames = gameScores.slice(0, 10);
+      
+      // Get family members for personalization
+      const familyMembers = await storage.getFamilyMembers(userId);
+      
+      // Get moments/memories
+      const moments = await storage.getMoments(userId);
+      const recentMoments = moments.slice(0, 5);
+      
+      // Get reminders
+      const reminders = await storage.getReminders(userId);
       
       const companionName = userGender === 'female' ? 'Thunaivi' : 'Thunaivan';
       const lang = userLanguage === 'ta' ? 'Tamil' : 'English';
       
+      // Build context about user's data
+      let userContext = "";
+      
+      if (recentGames.length > 0) {
+        const gameStats = recentGames.map(g => `${g.gameType}: score ${g.score}`).join(', ');
+        userContext += `\nGame History: ${userName} has played ${gameScores.length} games. Recent: ${gameStats}`;
+      }
+      
+      if (familyMembers.length > 0) {
+        const familyInfo = familyMembers.map(f => `${f.name} (${f.relationship})`).join(', ');
+        userContext += `\nFamily: ${familyInfo}`;
+      }
+      
+      if (recentMoments.length > 0) {
+        const momentTitles = recentMoments.map(m => m.title).join(', ');
+        userContext += `\nRecent Memories shared: ${momentTitles}`;
+      }
+      
+      if (reminders.length > 0) {
+        const activeReminders = reminders.filter(r => r.enabled).map(r => `${r.title} at ${r.time}`).join(', ');
+        if (activeReminders) userContext += `\nActive Reminders: ${activeReminders}`;
+      }
+      
       const systemPrompt = `You are ${companionName}, a warm, caring AI companion designed for elderly users in India. 
 You speak ${lang} and are helpful, patient, and emotionally supportive.
 Your user's name is ${userName}. They are interested in: ${userInterests?.join(', ') || 'various topics'}.
+${userContext}
 
 Guidelines:
-- Be warm, respectful, and use simple language
-- Remember details they share and reference them naturally
-- Encourage cognitive activities like memory games and storytelling
+- Be warm, respectful, and use simple language appropriate for elderly users
+- Remember ALL details from the conversation history and reference them naturally
+- When user asks to play a game, riddle, or any activity - ACTUALLY DO IT:
+  * For riddles: Ask them the riddle, wait for their answer, then reveal if correct
+  * For word games: Start the game immediately with a word
+  * For memory exercises: Guide them through the activity step by step
+  * For stories: Tell engaging, culturally relevant stories
+- Reference their game history to encourage them (e.g., "You did great in memory games last time!")
+- Mention family members by name when relevant
 - Ask thoughtful follow-up questions about their memories and family
 - Offer gentle reminders about health and wellness
 - Never be condescending, always treat them with dignity
-- Keep responses concise but meaningful (2-3 sentences typically)
-- If they seem sad or lonely, provide comfort and suggest activities`;
+- Keep responses conversational and engaging (3-5 sentences typically)
+- If they seem sad or lonely, provide comfort and suggest activities
+- Track the conversation flow - if you asked a riddle, remember to check their answer`;
 
       const conversationHistory = history
         .map(h => `${h.role === 'user' ? userName : companionName}: ${h.content}`)
@@ -90,12 +177,12 @@ Guidelines:
 
       const fullPrompt = `${systemPrompt}
 
-Recent conversation:
+Full Conversation History:
 ${conversationHistory}
 
 ${userName}: ${message}
 
-Respond as ${companionName}:`;
+Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
