@@ -21,7 +21,7 @@ export default function GamesStackNavigator() {
         name="Games"
         component={GamesScreen}
         options={{
-          title: t('games'),
+          title: t('gamesTab'),
         }}
       />
     </Stack.Navigator>
