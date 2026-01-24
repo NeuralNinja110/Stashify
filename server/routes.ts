@@ -9,7 +9,7 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-// OpenRouter API helper - using Llama 4 Maverick (no thinking process)
+// OpenRouter API helper - using Mistral Small (natural responses, no thinking)
 async function callOpenRouter(messages: { role: string; content: string }[], systemPrompt?: string) {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -18,7 +18,7 @@ async function callOpenRouter(messages: { role: string; content: string }[], sys
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "meta-llama/llama-4-maverick:free",
+      model: "mistralai/mistral-small-3.1-24b-instruct:free",
       messages: systemPrompt 
         ? [{ role: "system", content: systemPrompt }, ...messages]
         : messages,
