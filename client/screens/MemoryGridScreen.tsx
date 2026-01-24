@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Pressable, Image } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { StyleSheet, View, Pressable, Image, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
@@ -14,6 +14,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -198,6 +200,14 @@ export default function MemoryGridScreen() {
     navigation.goBack();
   };
 
+  const cellSize = useMemo(() => {
+    const gridPadding = Spacing.lg * 2;
+    const gap = Spacing.md;
+    const availableWidth = SCREEN_WIDTH - gridPadding;
+    const totalGaps = (gridSize - 1) * gap;
+    return Math.floor((availableWidth - totalGaps) / gridSize);
+  }, [gridSize]);
+
   const renderCell = (cell: GridCell) => (
     <Pressable
       key={cell.id}
@@ -211,12 +221,15 @@ export default function MemoryGridScreen() {
             ? theme.backgroundDefault
             : theme.backgroundSecondary,
           borderColor: cell.found ? theme.success : theme.border,
-          width: `${100 / gridSize - 2}%`,
+          width: cellSize,
+          height: cellSize,
         },
       ]}
     >
       {(cell.revealed || cell.found) && cell.object ? (
-        <ThemedText style={styles.cellEmoji}>{cell.object}</ThemedText>
+        <ThemedText style={[styles.cellEmoji, { fontSize: Math.max(cellSize * 0.5, 24) }]}>
+          {cell.object}
+        </ThemedText>
       ) : null}
     </Pressable>
   );
@@ -431,17 +444,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: Spacing.sm,
+    alignItems: 'center',
+    gap: Spacing.md,
   },
   cell: {
-    aspectRatio: 1,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cellEmoji: {
-    fontSize: 28,
+    fontSize: 32,
   },
   gameOverState: {
     flex: 1,
