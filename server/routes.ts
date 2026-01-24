@@ -184,28 +184,11 @@ ${userName}: ${message}
 
 Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
 
-      // Try primary model first, fallback to stable model if overloaded
-      let response;
-      const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
-      let lastError;
-      
-      for (const model of models) {
-        try {
-          response = await ai.models.generateContent({
-            model: model,
-            contents: fullPrompt,
-          });
-          break;
-        } catch (err: any) {
-          lastError = err;
-          if (err?.status === 503) {
-            continue; // Try next model
-          }
-          throw err;
-        }
-      }
-
-      if (!response) throw lastError;
+      // Single request - no retries to avoid quota issues
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: fullPrompt,
+      });
 
       const aiResponse = response.text || "I'm here with you. How can I help?";
 
@@ -222,9 +205,12 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
       });
     } catch (error: any) {
       console.error("Chat error:", error);
-      const errorMsg = error?.status === 503 
-        ? "The AI is busy right now. Please try again in a moment."
-        : "Failed to get response";
+      let errorMsg = "Failed to get response";
+      if (error?.status === 503) {
+        errorMsg = "The AI is busy right now. Please try again in a moment.";
+      } else if (error?.status === 429) {
+        errorMsg = "Too many requests. Please wait a moment and try again.";
+      }
       res.status(500).json({ error: errorMsg });
     }
   });
