@@ -7,7 +7,7 @@ import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAudioPlayer, AudioSource } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -165,7 +165,15 @@ export default function MomentDetailScreen() {
           <View style={styles.dateRow}>
             <Ionicons name="calendar-outline" size={18} color={theme.textSecondary} />
             <ThemedText type="caption" style={[styles.date, { color: theme.textSecondary }]}>
-              {format(new Date(moment.createdAt), 'MMMM d, yyyy')}
+              {(() => {
+                if (!moment.createdAt) return 'Date not available';
+                try {
+                  const date = typeof moment.createdAt === 'string' ? parseISO(moment.createdAt) : new Date(moment.createdAt);
+                  return isValid(date) ? format(date, 'MMMM d, yyyy') : 'Date not available';
+                } catch {
+                  return 'Date not available';
+                }
+              })()}
             </ThemedText>
           </View>
 
