@@ -184,10 +184,27 @@ ${userName}: ${message}
 
 Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: fullPrompt,
-      });
+      // Retry logic for overloaded model
+      let response;
+      let lastError;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: fullPrompt,
+          });
+          break;
+        } catch (err: any) {
+          lastError = err;
+          if (err?.status === 503 && attempt < 2) {
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      if (!response) throw lastError;
 
       const aiResponse = response.text || "I'm here with you. How can I help?";
 
@@ -202,9 +219,12 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
         response: aiResponse,
         companionName,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chat error:", error);
-      res.status(500).json({ error: "Failed to get response" });
+      const errorMsg = error?.status === 503 
+        ? "The AI is busy right now. Please try again in a moment."
+        : "Failed to get response";
+      res.status(500).json({ error: errorMsg });
     }
   });
 
