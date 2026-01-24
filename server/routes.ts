@@ -69,7 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const audioMimeType = mimeType || "audio/m4a";
       
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.0-flash",
         contents: [
           {
             inlineData: {
@@ -184,21 +184,22 @@ ${userName}: ${message}
 
 Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
 
-      // Retry logic for overloaded model
+      // Try primary model first, fallback to stable model if overloaded
       let response;
+      const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
       let lastError;
-      for (let attempt = 0; attempt < 3; attempt++) {
+      
+      for (const model of models) {
         try {
           response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: model,
             contents: fullPrompt,
           });
           break;
         } catch (err: any) {
           lastError = err;
-          if (err?.status === 503 && attempt < 2) {
-            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-            continue;
+          if (err?.status === 503) {
+            continue; // Try next model
           }
           throw err;
         }
