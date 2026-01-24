@@ -98,7 +98,7 @@ ${userName}: ${message}
 Respond as ${companionName}:`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3-flash-preview",
         contents: fullPrompt,
       });
 
@@ -387,7 +387,7 @@ Make them culturally relevant to Indian users.
 Only return the JSON array, no other text.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3-flash-preview",
         contents: prompt,
       });
 
@@ -422,7 +422,7 @@ Requirements:
 Format as JSON array of strings only.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3-flash-preview",
         contents: prompt,
       });
 
@@ -458,7 +458,7 @@ Format as JSON array of strings only.`;
 Reply with only "yes" or "no".`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3-flash-preview",
         contents: prompt,
       });
 
@@ -487,7 +487,7 @@ Format as JSON array of objects with: prompt, category, hints (array of 3 helpfu
 Only return the JSON array.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3-flash-preview",
         contents: prompt,
       });
 
@@ -534,7 +534,7 @@ Format as JSON array of objects with: question, correctAnswer, options (array of
 Only return the JSON array.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3-flash-preview",
         contents: prompt,
       });
 
