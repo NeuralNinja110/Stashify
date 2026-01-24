@@ -512,10 +512,10 @@ Create riddles that relate to these interests when possible. For example:
 - If they like "cooking", include riddles about kitchen items or food
 - If they like "nature", include riddles about plants, animals, or weather
 - If they like "family", include riddles about relationships or home life
-Make at least 3 of the 5 riddles related to their interests.`;
+Make at least 12 of the 20 riddles related to their interests.`;
       }
       
-      const prompt = `Generate 5 unique riddles suitable for elderly users (60+ years old) in ${language === 'ta' ? 'Tamil' : 'English'}.
+      const prompt = `Generate 20 unique riddles suitable for elderly users (60+ years old) in ${language === 'ta' ? 'Tamil' : 'English'}.
 Difficulty: ${difficulty}
 ${interestContext}
 

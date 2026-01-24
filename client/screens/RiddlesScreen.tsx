@@ -32,6 +32,7 @@ export default function RiddlesScreen() {
 
   const [gameState, setGameState] = useState<GameState>('ready');
   const [riddles, setRiddles] = useState<Riddle[]>([]);
+  const [shuffledRiddles, setShuffledRiddles] = useState<Riddle[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [showHint, setShowHint] = useState(false);
@@ -39,9 +40,18 @@ export default function RiddlesScreen() {
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [completedRound, setCompletedRound] = useState(0);
 
   const cardScale = useSharedValue(1);
 
+  const shuffleArray = <T,>(array: T[]): T[] => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
 
   useEffect(() => {
     loadRiddles();
@@ -60,6 +70,7 @@ export default function RiddlesScreen() {
         const data = await response.json();
         if (data.length > 0) {
           setRiddles(data);
+          setShuffledRiddles(shuffleArray(data));
           setIsLoading(false);
           return;
         }
@@ -72,21 +83,24 @@ export default function RiddlesScreen() {
 
   const startGame = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShuffledRiddles(shuffleArray(riddles));
     setCurrentIndex(0);
     setScore(0);
     setStreak(0);
     setUserAnswer('');
     setShowHint(false);
     setIsCorrect(null);
+    setCompletedRound(0);
     setGameState('playing');
   };
 
   const checkAnswer = () => {
     if (!userAnswer.trim()) return;
 
-    const currentRiddle = riddles[currentIndex];
+    const riddle = shuffledRiddles[currentIndex];
+    if (!riddle) return;
     const userInput = userAnswer.trim().toLowerCase();
-    const correctAnswer = currentRiddle.answer.toLowerCase();
+    const correctAnswer = riddle.answer.toLowerCase();
     
     const correct = userInput === correctAnswer || 
       userInput.includes(correctAnswer) || 
@@ -112,14 +126,23 @@ export default function RiddlesScreen() {
   };
 
   const nextRiddle = () => {
-    if (currentIndex < riddles.length - 1) {
+    if (currentIndex < shuffledRiddles.length - 1) {
       setCurrentIndex(prev => prev + 1);
       setUserAnswer('');
       setShowHint(false);
       setIsCorrect(null);
       setGameState('playing');
     } else {
-      endGame();
+      // Completed all riddles in this round
+      setCompletedRound(prev => prev + 1);
+      // Reshuffle and start over
+      setShuffledRiddles(shuffleArray(riddles));
+      setCurrentIndex(0);
+      setUserAnswer('');
+      setShowHint(false);
+      setIsCorrect(null);
+      setGameState('playing');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   };
 
@@ -149,7 +172,7 @@ export default function RiddlesScreen() {
     transform: [{ scale: cardScale.value }],
   }));
 
-  const currentRiddle = riddles[currentIndex] || { question: '', answer: '', hint: '' };
+  const currentRiddle = shuffledRiddles[currentIndex] || { question: '', answer: '', hint: '' };
 
   return (
     <ThemedView
@@ -214,7 +237,7 @@ export default function RiddlesScreen() {
         <View style={styles.gameArea}>
           <View style={styles.progressBar}>
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              Riddle {currentIndex + 1} of {riddles.length}
+              Riddle {currentIndex + 1} of {shuffledRiddles.length}{completedRound > 0 ? ` (Round ${completedRound + 1})` : ''}
             </ThemedText>
             <View style={[styles.progressTrack, { backgroundColor: theme.backgroundSecondary }]}>
               <View
@@ -222,7 +245,7 @@ export default function RiddlesScreen() {
                   styles.progressFill,
                   {
                     backgroundColor: theme.primary,
-                    width: `${((currentIndex + 1) / riddles.length) * 100}%`,
+                    width: `${((currentIndex + 1) / shuffledRiddles.length) * 100}%`,
                   },
                 ]}
               />
@@ -322,7 +345,7 @@ export default function RiddlesScreen() {
                 )}
               </View>
               <Button onPress={nextRiddle} style={styles.nextButton}>
-                {currentIndex < riddles.length - 1 ? 'Next Riddle' : 'See Results'}
+                {currentIndex < shuffledRiddles.length - 1 ? 'Next Riddle' : 'New Round'}
               </Button>
             </Animated.View>
           )}
