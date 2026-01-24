@@ -1,9 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, TextInput, Pressable, FlatList } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { StyleSheet, View, TextInput, Pressable, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Feather } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import Animated, { 
+  FadeIn, 
+  FadeInDown, 
+  FadeOut, 
+  ZoomIn,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 
@@ -13,14 +23,27 @@ import { Button } from '@/components/Button';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
-import { getApiUrl, apiRequest } from '@/lib/query-client';
+import { getApiUrl } from '@/lib/query-client';
 
-type GameState = 'ready' | 'playing' | 'gameOver';
+type GamePhase = 'lobby' | 'waiting' | 'selecting' | 'memorizing' | 'recalling' | 'gameOver';
 
-interface WordEntry {
-  word: string;
-  isUser: boolean;
-  isValid: boolean;
+interface Player {
+  id: string;
+  name: string;
+  score: number;
+}
+
+interface GameState {
+  wordChain: string[];
+  currentTurn: number;
+  player1: Player | null;
+  player2: Player | null;
+  phase: string;
+  wordOptions: string[];
+  showWords: boolean;
+  currentRecallIndex: number;
+  winner: string | null;
+  failedPlayer: number | null;
 }
 
 export default function WordChainScreen() {
@@ -30,348 +53,582 @@ export default function WordChainScreen() {
   const { t } = useTranslation();
   const { user } = useAuth();
 
-  const [gameState, setGameState] = useState<GameState>('ready');
-  const [words, setWords] = useState<WordEntry[]>([]);
-  const [currentWord, setCurrentWord] = useState('');
-  const [inputWord, setInputWord] = useState('');
-  const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(60);
-  const [isValidating, setIsValidating] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [usedWords, setUsedWords] = useState<Set<string>>(new Set());
+  const [phase, setPhase] = useState<GamePhase>('lobby');
+  const [roomCode, setRoomCode] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [memorizeCountdown, setMemorizeCountdown] = useState(0);
+  const [recalledWords, setRecalledWords] = useState<string[]>([]);
+  const [shuffledRecallOptions, setShuffledRecallOptions] = useState<string[]>([]);
+  
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cardScale = useSharedValue(1);
 
-  const startingWords = ['apple', 'elephant', 'tree', 'garden', 'night', 'table', 'house', 'earth'];
+  const playerNum = gameState?.player1?.id === user?.id ? 1 : 2;
+  const isMyTurn = gameState?.currentTurn === playerNum;
+  const myPlayer = playerNum === 1 ? gameState?.player1 : gameState?.player2;
+  const opponent = playerNum === 1 ? gameState?.player2 : gameState?.player1;
+
+  const startPolling = useCallback((sid: string) => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    
+    pollingRef.current = setInterval(async () => {
+      try {
+        const response = await fetch(
+          new URL(`/api/games/wordchain/rooms/${sid}`, getApiUrl()).toString()
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setGameState(data.gameState);
+          
+          const serverPhase = data.gameState.phase;
+          if (serverPhase === 'waiting') setPhase('waiting');
+          else if (serverPhase === 'selecting') setPhase('selecting');
+          else if (serverPhase === 'memorizing') setPhase('memorizing');
+          else if (serverPhase === 'recalling') setPhase('recalling');
+          else if (serverPhase === 'gameOver') setPhase('gameOver');
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 1000);
+  }, []);
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
-    if (gameState === 'playing' && timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (gameState === 'playing' && timeLeft === 0) {
-      endGame();
+    return () => stopPolling();
+  }, [stopPolling]);
+
+  useEffect(() => {
+    if (phase === 'memorizing' && isMyTurn && gameState?.showWords) {
+      const wordsToMemorize = gameState.wordChain.length;
+      const countdown = Math.min(3 + wordsToMemorize, 10);
+      setMemorizeCountdown(countdown);
+      
+      const timer = setInterval(() => {
+        setMemorizeCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            handleReadyToRecall();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      return () => clearInterval(timer);
     }
-  }, [gameState, timeLeft]);
+  }, [phase, isMyTurn, gameState?.showWords, gameState?.wordChain.length]);
 
-  const startGame = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const startWord = startingWords[Math.floor(Math.random() * startingWords.length)];
-    setWords([{ word: startWord, isUser: false, isValid: true }]);
-    setCurrentWord(startWord);
-    setUsedWords(new Set([startWord.toLowerCase()]));
-    setScore(0);
-    setTimeLeft(60);
-    setGameState('playing');
-    setErrorMessage('');
-  };
-
-  const validateAndSubmitWord = async () => {
-    if (!inputWord.trim() || isValidating) return;
-
-    const word = inputWord.trim().toLowerCase();
-    setIsValidating(true);
-    setErrorMessage('');
-
-    // Check if word starts with correct letter
-    const requiredLetter = currentWord.slice(-1).toLowerCase();
-    if (word.charAt(0) !== requiredLetter) {
-      setErrorMessage(`Word must start with "${requiredLetter.toUpperCase()}"`);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setIsValidating(false);
+  const createRoom = async () => {
+    if (!user?.id || !user?.name) {
+      setError('Please log in first');
       return;
     }
-
-    // Check if word already used
-    if (usedWords.has(word)) {
-      setErrorMessage('This word has already been used!');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setIsValidating(false);
-      return;
-    }
-
-    // Check minimum length
-    if (word.length < 3) {
-      setErrorMessage('Word must be at least 3 letters');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setIsValidating(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(new URL('/api/games/wordchain/validate', getApiUrl()).toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          word,
-          previousWord: currentWord,
-          language: user?.language || 'en',
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.valid) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        const userEntry: WordEntry = { word: inputWord.trim(), isUser: true, isValid: true };
-        setWords(prev => [...prev, userEntry]);
-        setUsedWords(prev => new Set([...prev, word]));
-        setCurrentWord(word);
-        setScore(prev => prev + (word.length * 10));
-        setInputWord('');
-
-        // AI responds with a word
-        setTimeout(() => generateAIWord(word), 500);
-      } else {
-        setErrorMessage(result.reason || 'Not a valid word');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
-    } catch (error) {
-      // On error, accept the word
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const userEntry: WordEntry = { word: inputWord.trim(), isUser: true, isValid: true };
-      setWords(prev => [...prev, userEntry]);
-      setUsedWords(prev => new Set([...prev, word]));
-      setCurrentWord(word);
-      setScore(prev => prev + (word.length * 10));
-      setInputWord('');
-      setTimeout(() => generateAIWord(word), 500);
-    }
-
-    setIsValidating(false);
-  };
-
-  const generateAIWord = async (lastWord: string) => {
-    const lastLetter = lastWord.slice(-1).toLowerCase();
     
-    // Simple AI word generation - find a word starting with the last letter
-    const commonWords: Record<string, string[]> = {
-      'a': ['apple', 'ant', 'arrow', 'animal', 'air'],
-      'b': ['ball', 'bird', 'book', 'bread', 'bright'],
-      'c': ['cat', 'car', 'cloud', 'cake', 'chair'],
-      'd': ['dog', 'door', 'day', 'dance', 'dream'],
-      'e': ['egg', 'elephant', 'earth', 'eye', 'eagle'],
-      'f': ['fish', 'flower', 'fire', 'friend', 'forest'],
-      'g': ['garden', 'green', 'gift', 'game', 'gold'],
-      'h': ['house', 'heart', 'hand', 'happy', 'hope'],
-      'i': ['ice', 'island', 'idea', 'ink', 'iron'],
-      'j': ['jungle', 'joy', 'jump', 'jar', 'juice'],
-      'k': ['king', 'kite', 'key', 'kind', 'kitchen'],
-      'l': ['love', 'light', 'leaf', 'lion', 'lake'],
-      'm': ['moon', 'morning', 'music', 'mountain', 'mother'],
-      'n': ['night', 'nature', 'name', 'nest', 'nice'],
-      'o': ['orange', 'ocean', 'open', 'owl', 'old'],
-      'p': ['peace', 'picture', 'plant', 'paper', 'purple'],
-      'q': ['queen', 'quiet', 'quick', 'quilt', 'question'],
-      'r': ['rain', 'river', 'rose', 'road', 'rainbow'],
-      's': ['sun', 'star', 'song', 'sweet', 'smile'],
-      't': ['tree', 'table', 'time', 'tiger', 'train'],
-      'u': ['umbrella', 'uncle', 'universe', 'unique', 'up'],
-      'v': ['village', 'valley', 'voice', 'visit', 'view'],
-      'w': ['water', 'wind', 'world', 'winter', 'warm'],
-      'x': ['xylophone', 'x-ray'],
-      'y': ['yellow', 'year', 'young', 'yesterday', 'yoga'],
-      'z': ['zebra', 'zero', 'zone', 'zoo', 'zip'],
-    };
-
-    const possibleWords = commonWords[lastLetter] || ['unknown'];
-    const validWords = possibleWords.filter(w => !usedWords.has(w.toLowerCase()));
+    setIsLoading(true);
+    setError('');
     
-    if (validWords.length === 0) {
-      // AI can't find a word, player wins bonus
-      setScore(prev => prev + 50);
-      return;
-    }
-
-    const aiWord = validWords[Math.floor(Math.random() * validWords.length)];
-    const aiEntry: WordEntry = { word: aiWord, isUser: false, isValid: true };
-    setWords(prev => [...prev, aiEntry]);
-    setUsedWords(prev => new Set([...prev, aiWord.toLowerCase()]));
-    setCurrentWord(aiWord);
-  };
-
-  const endGame = async () => {
-    setGameState('gameOver');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    // Save score
     try {
-      await apiRequest('POST', '/api/games/scores', {
-        userId: user?.id || 'guest',
-        gameType: 'word-chain',
-        score,
-        level: Math.floor(words.length / 5) + 1,
-        metadata: { wordsPlayed: words.length },
-      });
-    } catch (error) {
-      console.error('Failed to save score:', error);
-    }
-  };
-
-  const renderWordItem = ({ item, index }: { item: WordEntry; index: number }) => (
-    <Animated.View
-      entering={FadeInDown.delay(index * 50).duration(200)}
-      style={[
-        styles.wordItem,
+      const response = await fetch(
+        new URL('/api/games/wordchain/rooms', getApiUrl()).toString(),
         {
-          backgroundColor: item.isUser ? theme.primary + '20' : theme.backgroundDefault,
-          alignSelf: item.isUser ? 'flex-end' : 'flex-start',
-        },
-      ]}
-    >
-      <ThemedText type="body" style={{ color: item.isUser ? theme.primary : theme.text }}>
-        {item.word}
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, playerName: user.name }),
+        }
+      );
+      
+      if (!response.ok) throw new Error('Failed to create room');
+      
+      const data = await response.json();
+      setRoomCode(data.roomCode);
+      setSessionId(data.sessionId);
+      setGameState(data.gameState);
+      setPhase('waiting');
+      startPolling(data.sessionId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      setError('Failed to create room. Please try again.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const joinRoom = async () => {
+    if (!user?.id || !user?.name) {
+      setError('Please log in first');
+      return;
+    }
+    
+    if (!joinCode.trim()) {
+      setError('Please enter a room code');
+      return;
+    }
+    
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const response = await fetch(
+        new URL('/api/games/wordchain/rooms/join', getApiUrl()).toString(),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            roomCode: joinCode.toUpperCase(), 
+            userId: user.id, 
+            playerName: user.name 
+          }),
+        }
+      );
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to join room');
+      }
+      
+      const data = await response.json();
+      setRoomCode(data.roomCode);
+      setSessionId(data.sessionId);
+      setGameState(data.gameState);
+      setPhase('selecting');
+      startPolling(data.sessionId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) {
+      setError(err.message || 'Failed to join room');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const selectWord = async (word: string) => {
+    if (!sessionId || !user?.id) return;
+    
+    try {
+      const response = await fetch(
+        new URL(`/api/games/wordchain/rooms/${sessionId}/move`, getApiUrl()).toString(),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, action: 'select', selectedWord: word }),
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setGameState(data.gameState);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        cardScale.value = withSequence(withSpring(1.1), withSpring(1));
+      }
+    } catch (err) {
+      console.error('Select word error:', err);
+    }
+  };
+
+  const handleReadyToRecall = async () => {
+    if (!sessionId || !user?.id || !gameState) return;
+    
+    // Shuffle the chain words for recall options
+    const shuffled = [...gameState.wordChain].sort(() => Math.random() - 0.5);
+    setShuffledRecallOptions(shuffled);
+    
+    try {
+      const response = await fetch(
+        new URL(`/api/games/wordchain/rooms/${sessionId}/move`, getApiUrl()).toString(),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, action: 'ready_to_recall' }),
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setGameState(data.gameState);
+        setRecalledWords([]);
+      }
+    } catch (err) {
+      console.error('Ready to recall error:', err);
+    }
+  };
+
+  const recallWord = async (word: string) => {
+    if (!sessionId || !user?.id) return;
+    
+    try {
+      const response = await fetch(
+        new URL(`/api/games/wordchain/rooms/${sessionId}/move`, getApiUrl()).toString(),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, action: 'recall', recalledWord: word }),
+        }
+      );
+      
+      const data = await response.json();
+      setGameState(data.gameState);
+      
+      if (data.result === 'wrong') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setPhase('gameOver');
+      } else {
+        setRecalledWords(prev => [...prev, word]);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err) {
+      console.error('Recall word error:', err);
+    }
+  };
+
+  const leaveGame = async () => {
+    if (sessionId && user?.id) {
+      try {
+        await fetch(
+          new URL(`/api/games/wordchain/rooms/${sessionId}/leave`, getApiUrl()).toString(),
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id }),
+          }
+        );
+      } catch (err) {
+        console.error('Leave game error:', err);
+      }
+    }
+    stopPolling();
+    navigation.goBack();
+  };
+
+  const playAgain = () => {
+    stopPolling();
+    setPhase('lobby');
+    setRoomCode('');
+    setJoinCode('');
+    setSessionId(null);
+    setGameState(null);
+    setError('');
+    setRecalledWords([]);
+  };
+
+  const cardAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: cardScale.value }],
+  }));
+
+  const renderLobby = () => (
+    <Animated.View entering={FadeIn.duration(400)} style={styles.lobbyContainer}>
+      <ThemedText type="h2" style={styles.title}>
+        {t('games.wordChain')}
       </ThemedText>
+      <ThemedText type="body" style={[styles.subtitle, { color: theme.textSecondary }]}>
+        A memory chain game for 2 players. Take turns adding words and recalling the entire chain!
+      </ThemedText>
+
+      {error ? (
+        <ThemedText type="small" style={[styles.errorText, { color: theme.error }]}>
+          {error}
+        </ThemedText>
+      ) : null}
+
+      <View style={styles.lobbyButtons}>
+        <Button 
+          onPress={createRoom} 
+          style={styles.lobbyButton}
+          disabled={isLoading}
+        >
+          Create Room
+        </Button>
+        
+        <ThemedText type="body" style={[styles.orText, { color: theme.textSecondary }]}>
+          — or —
+        </ThemedText>
+        
+        <TextInput
+          value={joinCode}
+          onChangeText={setJoinCode}
+          placeholder="Enter Room Code"
+          placeholderTextColor={theme.textSecondary}
+          style={[styles.codeInput, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+          autoCapitalize="characters"
+          maxLength={6}
+        />
+        
+        <Button 
+          onPress={joinRoom} 
+          style={[styles.lobbyButton, { backgroundColor: theme.accent }]}
+          disabled={isLoading}
+        >
+          Join Room
+        </Button>
+      </View>
+    </Animated.View>
+  );
+
+  const renderWaiting = () => (
+    <Animated.View entering={FadeIn.duration(400)} style={styles.waitingContainer}>
+      <View style={[styles.codeCard, { backgroundColor: theme.backgroundDefault }]}>
+        <ThemedText type="small" style={{ color: theme.textSecondary }}>
+          Room Code
+        </ThemedText>
+        <ThemedText type="h1" style={{ color: theme.primary, letterSpacing: 8 }}>
+          {roomCode}
+        </ThemedText>
+        <ThemedText type="body" style={[styles.shareText, { color: theme.textSecondary }]}>
+          Share this code with your friend
+        </ThemedText>
+      </View>
+      
+      <View style={styles.waitingAnimation}>
+        <Ionicons name="people-outline" size={60} color={theme.primary} />
+        <ThemedText type="body" style={{ marginTop: Spacing.md }}>
+          Waiting for player 2 to join...
+        </ThemedText>
+      </View>
+    </Animated.View>
+  );
+
+  const renderSelecting = () => (
+    <Animated.View entering={FadeIn.duration(400)} style={styles.gameContainer}>
+      <View style={styles.scoreBoard}>
+        <View style={[styles.playerScore, myPlayer && isMyTurn ? { borderColor: theme.primary, borderWidth: 2 } : {}]}>
+          <ThemedText type="small">You</ThemedText>
+          <ThemedText type="h3" style={{ color: theme.primary }}>{myPlayer?.score || 0}</ThemedText>
+        </View>
+        <View style={styles.vsContainer}>
+          <ThemedText type="body" style={{ color: theme.textSecondary }}>VS</ThemedText>
+        </View>
+        <View style={[styles.playerScore, opponent && !isMyTurn ? { borderColor: theme.accent, borderWidth: 2 } : {}]}>
+          <ThemedText type="small">{opponent?.name || 'Player 2'}</ThemedText>
+          <ThemedText type="h3" style={{ color: theme.accent }}>{opponent?.score || 0}</ThemedText>
+        </View>
+      </View>
+
+      <View style={styles.chainDisplay}>
+        <ThemedText type="small" style={{ color: theme.textSecondary }}>
+          Word Chain ({gameState?.wordChain.length || 0} words)
+        </ThemedText>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainScroll}>
+          {gameState?.wordChain.map((word, index) => (
+            <Animated.View
+              key={index}
+              entering={FadeInDown.delay(index * 100)}
+              style={[styles.chainWord, { backgroundColor: theme.primary + '20' }]}
+            >
+              <ThemedText type="body" style={{ color: theme.primary }}>
+                {word}
+              </ThemedText>
+            </Animated.View>
+          ))}
+        </ScrollView>
+      </View>
+
+      {isMyTurn ? (
+        <>
+          <ThemedText type="h3" style={styles.turnText}>
+            Your Turn! Select a word to add:
+          </ThemedText>
+          <View style={styles.wordOptions}>
+            {gameState?.wordOptions.map((word, index) => (
+              <Pressable
+                key={word}
+                onPress={() => selectWord(word)}
+                style={[styles.wordOption, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+              >
+                <ThemedText type="body">{word}</ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : (
+        <View style={styles.waitingTurn}>
+          <Ionicons name="hourglass-outline" size={48} color={theme.textSecondary} />
+          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+            Waiting for {opponent?.name || 'opponent'} to select...
+          </ThemedText>
+        </View>
+      )}
+    </Animated.View>
+  );
+
+  const renderMemorizing = () => (
+    <Animated.View entering={FadeIn.duration(400)} style={styles.gameContainer}>
+      <View style={styles.scoreBoard}>
+        <View style={[styles.playerScore, isMyTurn ? { borderColor: theme.primary, borderWidth: 2 } : {}]}>
+          <ThemedText type="small">You</ThemedText>
+          <ThemedText type="h3" style={{ color: theme.primary }}>{myPlayer?.score || 0}</ThemedText>
+        </View>
+        <View style={styles.vsContainer}>
+          <ThemedText type="body" style={{ color: theme.textSecondary }}>VS</ThemedText>
+        </View>
+        <View style={[styles.playerScore, !isMyTurn ? { borderColor: theme.accent, borderWidth: 2 } : {}]}>
+          <ThemedText type="small">{opponent?.name || 'Player 2'}</ThemedText>
+          <ThemedText type="h3" style={{ color: theme.accent }}>{opponent?.score || 0}</ThemedText>
+        </View>
+      </View>
+
+      {isMyTurn && gameState?.showWords ? (
+        <>
+          <ThemedText type="h2" style={[styles.memorizeTitle, { color: theme.primary }]}>
+            Memorize these words!
+          </ThemedText>
+          <View style={[styles.countdownCircle, { borderColor: theme.primary }]}>
+            <ThemedText type="h1" style={{ color: theme.primary }}>{memorizeCountdown}</ThemedText>
+          </View>
+          <View style={styles.wordsToMemorize}>
+            {gameState?.wordChain.map((word, index) => (
+              <Animated.View
+                key={index}
+                entering={ZoomIn.delay(index * 200)}
+                style={[styles.memorizeWord, { backgroundColor: theme.primary }]}
+              >
+                <ThemedText type="h3" style={{ color: '#FFFFFF' }}>
+                  {index + 1}. {word}
+                </ThemedText>
+              </Animated.View>
+            ))}
+          </View>
+        </>
+      ) : (
+        <View style={styles.waitingTurn}>
+          <Ionicons name="eye-outline" size={48} color={theme.textSecondary} />
+          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+            {opponent?.name || 'Opponent'} is memorizing the words...
+          </ThemedText>
+        </View>
+      )}
+    </Animated.View>
+  );
+
+  const renderRecalling = () => (
+    <Animated.View entering={FadeIn.duration(400)} style={styles.gameContainer}>
+      <View style={styles.scoreBoard}>
+        <View style={[styles.playerScore, isMyTurn ? { borderColor: theme.primary, borderWidth: 2 } : {}]}>
+          <ThemedText type="small">You</ThemedText>
+          <ThemedText type="h3" style={{ color: theme.primary }}>{myPlayer?.score || 0}</ThemedText>
+        </View>
+        <View style={styles.vsContainer}>
+          <ThemedText type="body" style={{ color: theme.textSecondary }}>VS</ThemedText>
+        </View>
+        <View style={[styles.playerScore, !isMyTurn ? { borderColor: theme.accent, borderWidth: 2 } : {}]}>
+          <ThemedText type="small">{opponent?.name || 'Player 2'}</ThemedText>
+          <ThemedText type="h3" style={{ color: theme.accent }}>{opponent?.score || 0}</ThemedText>
+        </View>
+      </View>
+
+      {isMyTurn ? (
+        <>
+          <ThemedText type="h2" style={styles.recallTitle}>
+            Recall word #{(gameState?.currentRecallIndex || 0) + 1}
+          </ThemedText>
+          <ThemedText type="body" style={[styles.recallSubtitle, { color: theme.textSecondary }]}>
+            {recalledWords.length} of {gameState?.wordChain.length} recalled
+          </ThemedText>
+          
+          <View style={styles.recalledList}>
+            {recalledWords.map((word, index) => (
+              <View key={index} style={[styles.recalledWord, { backgroundColor: '#4CAF50' + '20' }]}>
+                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                <ThemedText type="body" style={{ color: '#4CAF50', marginLeft: 8 }}>{word}</ThemedText>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.wordOptions}>
+            {shuffledRecallOptions.map((word) => (
+              <Pressable
+                key={word}
+                onPress={() => recallWord(word)}
+                style={[styles.wordOption, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+              >
+                <ThemedText type="body">{word}</ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : (
+        <View style={styles.waitingTurn}>
+          <Ionicons name="bulb-outline" size={48} color={theme.textSecondary} />
+          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+            {opponent?.name || 'Opponent'} is recalling the words...
+          </ThemedText>
+        </View>
+      )}
+    </Animated.View>
+  );
+
+  const renderGameOver = () => (
+    <Animated.View entering={ZoomIn.duration(400)} style={styles.gameOverContainer}>
+      <Ionicons 
+        name={gameState?.winner === user?.name ? "trophy" : "sad-outline"} 
+        size={80} 
+        color={gameState?.winner === user?.name ? "#FFD700" : theme.textSecondary} 
+      />
+      <ThemedText type="h1" style={styles.gameOverTitle}>
+        {gameState?.winner === user?.name ? 'You Won!' : 'Game Over'}
+      </ThemedText>
+      <ThemedText type="body" style={[styles.winnerText, { color: theme.textSecondary }]}>
+        {gameState?.winner} wins!
+      </ThemedText>
+      
+      <View style={styles.finalScores}>
+        <View style={styles.finalScoreCard}>
+          <ThemedText type="small">You</ThemedText>
+          <ThemedText type="h2" style={{ color: theme.primary }}>{myPlayer?.score || 0}</ThemedText>
+        </View>
+        <View style={styles.finalScoreCard}>
+          <ThemedText type="small">{opponent?.name}</ThemedText>
+          <ThemedText type="h2" style={{ color: theme.accent }}>{opponent?.score || 0}</ThemedText>
+        </View>
+      </View>
+
+      <ThemedText type="body" style={{ marginTop: Spacing.lg, color: theme.textSecondary }}>
+        Chain Length: {gameState?.wordChain.length} words
+      </ThemedText>
+
+      <View style={styles.gameOverButtons}>
+        <Button onPress={playAgain} style={styles.playAgainButton}>
+          Play Again
+        </Button>
+        <Button 
+          onPress={() => navigation.goBack()} 
+          style={[styles.exitButton, { backgroundColor: theme.backgroundSecondary }]}
+        >
+          Exit
+        </Button>
+      </View>
     </Animated.View>
   );
 
   return (
-    <ThemedView
-      style={[
-        styles.container,
-        {
-          paddingTop: insets.top + Spacing.lg,
-          paddingBottom: insets.bottom + Spacing['2xl'],
-        },
-      ]}
-    >
+    <ThemedView style={[styles.container, { paddingTop: insets.top + Spacing.lg, paddingBottom: insets.bottom + Spacing.lg }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.exitButton} testID="button-exit">
+        <Pressable onPress={leaveGame} style={styles.exitBtn}>
           <Feather name="x" size={28} color={theme.text} />
         </Pressable>
-        <View style={styles.stats}>
-          <View style={styles.statItem}>
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              {t('games.score')}
-            </ThemedText>
-            <ThemedText type="h3">{score}</ThemedText>
+        {roomCode && phase !== 'lobby' && (
+          <View style={[styles.roomBadge, { backgroundColor: theme.primary + '20' }]}>
+            <ThemedText type="small" style={{ color: theme.primary }}>Room: {roomCode}</ThemedText>
           </View>
-          {gameState === 'playing' && (
-            <View style={styles.statItem}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                {t('games.time')}
-              </ThemedText>
-              <ThemedText
-                type="h3"
-                style={{ color: timeLeft <= 10 ? theme.error : theme.text }}
-              >
-                {timeLeft}s
-              </ThemedText>
-            </View>
-          )}
-        </View>
+        )}
       </View>
 
-      {gameState === 'ready' && (
-        <Animated.View entering={FadeIn.duration(400)} style={styles.readyState}>
-          <ThemedText type="h2" style={styles.title}>
-            {t('games.wordChain')}
-          </ThemedText>
-          <ThemedText
-            type="body"
-            style={[styles.instructions, { color: theme.textSecondary }]}
-          >
-            Continue the word chain! Each word must start with the last letter of the previous word.
-          </ThemedText>
-          <Button onPress={startGame} style={styles.startButton}>
-            {t('games.startGame')}
-          </Button>
-        </Animated.View>
-      )}
-
-      {gameState === 'playing' && (
-        <View style={styles.gameArea}>
-          <View style={styles.currentWordBox}>
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              Current word ends with:
-            </ThemedText>
-            <View style={[styles.letterBox, { backgroundColor: theme.primary }]}>
-              <ThemedText type="h1" style={{ color: '#FFFFFF' }}>
-                {currentWord.slice(-1).toUpperCase()}
-              </ThemedText>
-            </View>
-          </View>
-
-          <FlatList
-            data={words}
-            renderItem={renderWordItem}
-            keyExtractor={(item, index) => `${item.word}-${index}`}
-            contentContainerStyle={styles.wordsList}
-            showsVerticalScrollIndicator={false}
-            style={styles.wordsListContainer}
-          />
-
-          {errorMessage ? (
-            <ThemedText type="small" style={[styles.errorText, { color: theme.error }]}>
-              {errorMessage}
-            </ThemedText>
-          ) : null}
-
-          <View style={styles.inputRow}>
-            <TextInput
-              value={inputWord}
-              onChangeText={setInputWord}
-              placeholder={`Type a word starting with "${currentWord.slice(-1).toUpperCase()}"...`}
-              placeholderTextColor={theme.textSecondary}
-              style={[
-                styles.textInput,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  color: theme.text,
-                  borderColor: theme.border,
-                },
-              ]}
-              autoCapitalize="none"
-              autoCorrect={false}
-              onSubmitEditing={validateAndSubmitWord}
-              testID="input-word"
-            />
-            <Pressable
-              onPress={validateAndSubmitWord}
-              disabled={!inputWord.trim() || isValidating}
-              style={[
-                styles.submitButton,
-                {
-                  backgroundColor:
-                    inputWord.trim() && !isValidating
-                      ? theme.primary
-                      : theme.backgroundSecondary,
-                },
-              ]}
-              testID="button-submit"
-            >
-              <Feather
-                name={isValidating ? 'loader' : 'check'}
-                size={24}
-                color={inputWord.trim() && !isValidating ? '#FFFFFF' : theme.textSecondary}
-              />
-            </Pressable>
-          </View>
-        </View>
-      )}
-
-      {gameState === 'gameOver' && (
-        <Animated.View entering={ZoomIn.duration(400)} style={styles.gameOverState}>
-          <ThemedText type="h1" style={{ color: theme.primary }}>
-            {t('games.gameOver')}
-          </ThemedText>
-          <ThemedText type="h2" style={styles.finalScore}>
-            {t('games.score')}: {score}
-          </ThemedText>
-          <ThemedText type="body" style={[styles.wordsPlayed, { color: theme.textSecondary }]}>
-            {words.length} words played
-          </ThemedText>
-          <View style={styles.gameOverButtons}>
-            <Button onPress={startGame} style={styles.playAgainButton}>
-              {t('games.playAgain')}
-            </Button>
-            <Button
-              onPress={() => navigation.goBack()}
-              style={[styles.exitGameButton, { backgroundColor: theme.backgroundSecondary }]}
-            >
-              Exit
-            </Button>
-          </View>
-        </Animated.View>
-      )}
+      {phase === 'lobby' && renderLobby()}
+      {phase === 'waiting' && renderWaiting()}
+      {phase === 'selecting' && renderSelecting()}
+      {phase === 'memorizing' && renderMemorizing()}
+      {phase === 'recalling' && renderRecalling()}
+      {phase === 'gameOver' && renderGameOver()}
     </ThemedView>
   );
 }
@@ -383,111 +640,197 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
   },
-  exitButton: {
+  exitBtn: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stats: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: Spacing['2xl'],
+  roomBadge: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
   },
-  statItem: {
-    alignItems: 'center',
-  },
-  readyState: {
+  lobbyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing['2xl'],
   },
   title: {
-    marginBottom: Spacing.lg,
     textAlign: 'center',
+    marginBottom: Spacing.md,
   },
-  instructions: {
+  subtitle: {
     textAlign: 'center',
-    marginBottom: Spacing['3xl'],
-  },
-  startButton: {
-    minWidth: 200,
-  },
-  gameArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.lg,
-  },
-  currentWordBox: {
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  letterBox: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.sm,
-  },
-  wordsListContainer: {
-    flex: 1,
-    marginBottom: Spacing.lg,
-  },
-  wordsList: {
-    paddingVertical: Spacing.md,
-  },
-  wordItem: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.sm,
-    maxWidth: '70%',
+    marginBottom: Spacing['2xl'],
   },
   errorText: {
+    marginBottom: Spacing.md,
+  },
+  lobbyButtons: {
+    width: '100%',
+    gap: Spacing.md,
+  },
+  lobbyButton: {
+    width: '100%',
+  },
+  orText: {
     textAlign: 'center',
-    marginBottom: Spacing.sm,
+    marginVertical: Spacing.sm,
   },
-  inputRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  textInput: {
-    flex: 1,
+  codeInput: {
     height: 56,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.lg,
-    fontSize: 18,
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
     borderWidth: 2,
+    letterSpacing: 4,
   },
-  submitButton: {
-    width: 56,
-    height: 56,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gameOverState: {
+  waitingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing['2xl'],
   },
-  finalScore: {
+  codeCard: {
+    padding: Spacing['2xl'],
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+    marginBottom: Spacing['3xl'],
+  },
+  shareText: {
+    marginTop: Spacing.md,
+  },
+  waitingAnimation: {
+    alignItems: 'center',
+  },
+  gameContainer: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+  },
+  scoreBoard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  playerScore: {
+    flex: 1,
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+  },
+  vsContainer: {
+    paddingHorizontal: Spacing.md,
+  },
+  chainDisplay: {
+    marginBottom: Spacing.lg,
+  },
+  chainScroll: {
+    marginTop: Spacing.sm,
+  },
+  chainWord: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginRight: Spacing.sm,
+  },
+  turnText: {
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  wordOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.md,
+  },
+  wordOption: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  waitingTurn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memorizeTitle: {
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  countdownCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing.xl,
+  },
+  wordsToMemorize: {
+    gap: Spacing.md,
+  },
+  memorizeWord: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+  },
+  recallTitle: {
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+  },
+  recallSubtitle: {
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  recalledList: {
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  recalledWord: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  gameOverContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing['2xl'],
+  },
+  gameOverTitle: {
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
-  wordsPlayed: {
-    marginBottom: Spacing['3xl'],
+  winnerText: {
+    marginBottom: Spacing.xl,
+  },
+  finalScores: {
+    flexDirection: 'row',
+    gap: Spacing.xl,
+  },
+  finalScoreCard: {
+    alignItems: 'center',
+    padding: Spacing.lg,
   },
   gameOverButtons: {
-    gap: Spacing.md,
+    marginTop: Spacing['3xl'],
     width: '100%',
+    gap: Spacing.md,
   },
   playAgainButton: {},
-  exitGameButton: {},
+  exitButton: {},
 });

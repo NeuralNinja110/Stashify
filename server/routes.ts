@@ -895,14 +895,24 @@ Only return the JSON array.`;
         }
 
       } else if (action === 'ready_to_recall') {
-        // Player has finished memorizing and is ready to recall
+        // Only the current player (who just saw the words) can trigger recall
+        if (!isCurrentPlayer) {
+          return res.status(400).json({ error: "Not your turn to recall" });
+        }
+        if (gameState.phase !== 'memorizing') {
+          return res.status(400).json({ error: "Not in memorizing phase" });
+        }
+        
         gameState.phase = 'recalling';
         gameState.showWords = false;
         gameState.currentRecallIndex = 0;
         gameState.lastAction = Date.now();
 
       } else if (action === 'recall') {
-        // Player is recalling words in order
+        // Only the current player can recall
+        if (!isCurrentPlayer) {
+          return res.status(400).json({ error: "Not your turn to recall" });
+        }
         if (gameState.phase !== 'recalling') {
           return res.status(400).json({ error: "Cannot recall now" });
         }
