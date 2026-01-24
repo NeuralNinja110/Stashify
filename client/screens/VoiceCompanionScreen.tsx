@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, View, FlatList, TextInput, Pressable, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -16,6 +16,14 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { getApiUrl } from '@/lib/query-client';
+
+// Web Speech API types
+declare global {
+  interface Window {
+    webkitSpeechRecognition: any;
+    SpeechRecognition: any;
+  }
+}
 
 interface Message {
   id: string;
@@ -35,6 +43,9 @@ export default function VoiceCompanionScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   const companionName =
     user?.gender === 'female' ? t('companion.thunaivi') : t('companion.thunaivan');
@@ -86,13 +97,67 @@ export default function VoiceCompanionScreen() {
     }
   };
 
+  // Initialize Web Speech Recognition
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setVoiceSupported(true);
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = user?.language === 'ta' ? 'ta-IN' : 'en-US';
+        
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          if (transcript.trim()) {
+            setInputText(transcript);
+            handleSendMessage(transcript);
+          }
+          setIsRecording(false);
+        };
+        
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsRecording(false);
+          if (event.error === 'not-allowed') {
+            Alert.alert('Permission Required', 'Please allow microphone access to use voice input.');
+          }
+        };
+        
+        recognition.onend = () => {
+          setIsRecording(false);
+        };
+        
+        recognitionRef.current = recognition;
+      }
+    }
+  }, [user?.language]);
+
   const handleVoicePress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      'Voice Input Unavailable', 
-      'Voice input is currently not available. Please type your message instead.',
-      [{ text: 'OK' }]
-    );
+    
+    if (!voiceSupported) {
+      Alert.alert(
+        'Voice Input Unavailable', 
+        'Voice input is not supported in this browser. Please type your message instead.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      try {
+        recognitionRef.current?.start();
+        setIsRecording(true);
+      } catch (error) {
+        console.error('Failed to start recognition:', error);
+        Alert.alert('Error', 'Failed to start voice input. Please try again.');
+      }
+    }
   };
 
   const handleSendMessage = async (text: string) => {
@@ -306,10 +371,14 @@ export default function VoiceCompanionScreen() {
             type="caption"
             style={{ color: theme.textSecondary, marginBottom: Spacing.md }}
           >
-            {t('companion.voiceUnavailable', { defaultValue: 'Voice input unavailable' })}
+            {isRecording 
+              ? t('companion.listening', { defaultValue: 'Listening...' })
+              : voiceSupported 
+                ? t('companion.tapToSpeak', { defaultValue: 'Tap to speak' })
+                : t('companion.voiceUnavailable', { defaultValue: 'Voice not supported' })}
           </ThemedText>
           <VoiceButton 
-            isRecording={false} 
+            isRecording={isRecording} 
             onPress={handleVoicePress} 
             disabled={isLoading}
           />
