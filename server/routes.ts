@@ -71,12 +71,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== SPEECH-TO-TEXT ROUTE =====
-  // Note: OpenRouter doesn't support audio input, so voice input is disabled
+  // Uses OpenRouter's multimodal audio input to transcribe audio
   app.post("/api/speech-to-text", async (req: Request, res: Response) => {
-    res.status(501).json({ 
-      error: "Voice input not available with current AI provider. Please type your message.", 
-      transcription: "" 
-    });
+    try {
+      const { audioBase64, mimeType, language } = req.body;
+      
+      if (!audioBase64) {
+        return res.status(400).json({ error: "Audio data is required", transcription: "" });
+      }
+      
+      // Determine format from mimeType
+      let format = "wav";
+      if (mimeType?.includes("webm")) format = "webm";
+      else if (mimeType?.includes("mp4") || mimeType?.includes("m4a")) format = "mp4";
+      else if (mimeType?.includes("mp3") || mimeType?.includes("mpeg")) format = "mp3";
+      else if (mimeType?.includes("ogg")) format = "ogg";
+      
+      // Use OpenRouter with a multimodal model for transcription
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-flash-1.5-8b",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "input_audio",
+                  input_audio: {
+                    data: audioBase64,
+                    format: format,
+                  },
+                },
+                {
+                  type: "text",
+                  text: `Transcribe this audio exactly. Output ONLY the transcription text, nothing else. Language: ${language === 'ta' ? 'Tamil' : 'English'}`,
+                },
+              ],
+            },
+          ],
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Transcription error:", error);
+        return res.status(500).json({ 
+          error: "Failed to transcribe audio", 
+          transcription: "" 
+        });
+      }
+      
+      const data = await response.json();
+      const transcription = data.choices?.[0]?.message?.content?.trim() || "";
+      
+      res.json({ transcription });
+    } catch (error) {
+      console.error("Speech-to-text error:", error);
+      res.status(500).json({ 
+        error: "Failed to process audio", 
+        transcription: "" 
+      });
+    }
   });
 
   // ===== AI COMPANION ROUTES =====

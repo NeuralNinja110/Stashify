@@ -7,6 +7,7 @@ import Animated, { FadeIn, FadeInDown, SlideInUp } from 'react-native-reanimated
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
+import { useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -16,9 +17,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { getApiUrl } from '@/lib/query-client';
-
-// Note: Voice input via native speech recognition requires a custom Expo build
-// For Expo Go users, show a message to use keyboard's voice input instead
 
 interface Message {
   id: string;
@@ -38,11 +36,13 @@ export default function VoiceCompanionScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   const companionName =
     user?.gender === 'female' ? t('companion.thunaivi') : t('companion.thunaivan');
-
-  // Voice input is not available in Expo Go - users should use keyboard mic button
 
   useEffect(() => {
     loadChatHistory();
@@ -91,15 +91,96 @@ export default function VoiceCompanionScreen() {
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      if (!status.granted) {
+        Alert.alert('Permission Required', 'Please allow microphone access to use voice input.');
+        return;
+      }
+
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      Alert.alert('Error', 'Failed to start recording. Please try again.');
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!isRecording) return;
+    
+    try {
+      setIsRecording(false);
+      setIsTranscribing(true);
+
+      await audioRecorder.stop();
+      
+      const uri = audioRecorder.uri;
+
+      if (uri) {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        
+        // Detect mime type from URI extension or blob type
+        let mimeType = blob.type || "audio/m4a";
+        if (uri.endsWith('.wav')) mimeType = "audio/wav";
+        else if (uri.endsWith('.m4a') || uri.endsWith('.aac')) mimeType = "audio/m4a";
+        else if (uri.endsWith('.mp3')) mimeType = "audio/mp3";
+        else if (uri.endsWith('.webm')) mimeType = "audio/webm";
+        
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64 = (reader.result as string).split(',')[1];
+          
+          try {
+            const transcribeResponse = await fetch(
+              new URL('/api/speech-to-text', getApiUrl()).toString(),
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  audioBase64: base64,
+                  language: user?.language || 'en',
+                  mimeType: mimeType,
+                }),
+              }
+            );
+
+            const data = await transcribeResponse.json();
+            if (data.transcription && data.transcription.trim()) {
+              setInputText(data.transcription);
+              handleSendMessage(data.transcription);
+            } else {
+              Alert.alert('Voice Input', 'Could not understand the audio. Please try again or type your message.');
+            }
+          } catch (error) {
+            console.error('Transcription error:', error);
+            Alert.alert('Error', 'Failed to process voice. Please try typing instead.');
+          } finally {
+            setIsTranscribing(false);
+          }
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        setIsTranscribing(false);
+      }
+    } catch (error) {
+      console.error('Failed to stop recording:', error);
+      setIsRecording(false);
+      setIsTranscribing(false);
+    }
+  };
+
   const handleVoicePress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // Show helpful message - voice input via this button requires custom build
-    Alert.alert(
-      'Voice Typing Tip',
-      'To use voice input:\n\n1. Tap the text input field\n2. Look for the microphone icon on your keyboard\n3. Tap it to speak your message\n\nMost Android and iOS keyboards have built-in voice typing!',
-      [{ text: 'Got it!' }]
-    );
+    if (isRecording) {
+      await stopRecording();
+    } else {
+      await startRecording();
+    }
   };
 
   const handleSendMessage = async (text: string) => {
@@ -313,12 +394,16 @@ export default function VoiceCompanionScreen() {
             type="caption"
             style={{ color: theme.textSecondary, marginBottom: Spacing.md }}
           >
-            {t('companion.useKeyboard', { defaultValue: 'Use keyboard mic for voice' })}
+            {isTranscribing 
+              ? t('companion.processing', { defaultValue: 'Processing your voice...' })
+              : isRecording 
+                ? t('companion.listening', { defaultValue: 'Listening... Tap to stop' }) 
+                : t('companion.tapToSpeak', { defaultValue: 'Tap to speak' })}
           </ThemedText>
           <VoiceButton 
-            isRecording={false} 
+            isRecording={isRecording} 
             onPress={handleVoicePress} 
-            disabled={isLoading}
+            disabled={isLoading || isTranscribing}
           />
         </View>
       </Animated.View>
