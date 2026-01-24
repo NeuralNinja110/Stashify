@@ -18,7 +18,7 @@ async function callOpenRouter(messages: { role: string; content: string }[], sys
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "mistralai/mistral-small-3.1-24b-instruct:free",
+      model: "nvidia/nemotron-3-nano-30b-a3b:free",
       messages: systemPrompt 
         ? [{ role: "system", content: systemPrompt }, ...messages]
         : messages,
