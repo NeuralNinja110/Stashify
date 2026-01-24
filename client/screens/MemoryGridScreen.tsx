@@ -46,23 +46,17 @@ export default function MemoryGridScreen() {
   const [level, setLevel] = useState(1);
   const [timeLeft, setTimeLeft] = useState(5);
   const [wrongAttempts, setWrongAttempts] = useState(0);
+  const [objectsToFind, setObjectsToFind] = useState<string[]>([]);
+  const [foundCount, setFoundCount] = useState(0);
+  const [totalToFind, setTotalToFind] = useState(0);
 
   const initializeGame = useCallback(() => {
     const totalCells = gridSize * gridSize;
-    const objectCount = Math.min(Math.floor(totalCells / 2), 7);
-    const selectedObjects = OBJECTS.slice(0, objectCount);
+    const objectCount = Math.min(Math.floor(totalCells / 2), 6);
+    const shuffledObjects = [...OBJECTS].sort(() => Math.random() - 0.5);
+    const selectedObjects = shuffledObjects.slice(0, objectCount);
     
     const cells: GridCell[] = [];
-    const positions = new Set<number>();
-    
-    selectedObjects.forEach((obj, index) => {
-      let pos: number;
-      do {
-        pos = Math.floor(Math.random() * totalCells);
-      } while (positions.has(pos));
-      positions.add(pos);
-    });
-
     for (let i = 0; i < totalCells; i++) {
       cells.push({
         id: i,
@@ -71,14 +65,23 @@ export default function MemoryGridScreen() {
         found: false,
       });
     }
-
-    const posArray = Array.from(positions);
-    posArray.forEach((pos, index) => {
-      cells[pos].object = selectedObjects[index];
+    
+    const usedPositions = new Set<number>();
+    selectedObjects.forEach((obj) => {
+      let pos: number;
+      do {
+        pos = Math.floor(Math.random() * totalCells);
+      } while (usedPositions.has(pos));
+      usedPositions.add(pos);
+      cells[pos].object = obj;
     });
 
+    const firstTarget = selectedObjects[0];
     setGrid(cells);
-    setTargetObject(selectedObjects[Math.floor(Math.random() * selectedObjects.length)]);
+    setObjectsToFind(selectedObjects);
+    setTargetObject(firstTarget);
+    setFoundCount(0);
+    setTotalToFind(selectedObjects.length);
     setWrongAttempts(0);
   }, [gridSize]);
 
@@ -122,56 +125,62 @@ export default function MemoryGridScreen() {
   };
 
   const handleCellPress = (cell: GridCell) => {
-    if (gameState !== 'playing' || cell.found) return;
+    if (gameState !== 'playing' || cell.found || cell.revealed) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (cell.object === targetObject) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
       setGrid((prev) =>
         prev.map((c) =>
           c.id === cell.id ? { ...c, found: true, revealed: true } : c
         )
       );
-      setScore((s) => s + (10 * level) - (wrongAttempts * 2));
       
-      const remaining = grid.filter(
-        (c) => c.object === targetObject && !c.found && c.id !== cell.id
-      );
+      const points = Math.max(10 * level - wrongAttempts * 2, 5);
+      setScore((s) => s + points);
       
-      if (remaining.length === 0) {
-        const availableObjects = grid
-          .filter((c) => c.object && !c.found && c.object !== targetObject)
-          .map((c) => c.object);
-        
-        if (availableObjects.length > 0) {
-          setTargetObject(
-            availableObjects[Math.floor(Math.random() * availableObjects.length)]
-          );
-          setWrongAttempts(0);
-        } else {
+      const newFoundCount = foundCount + 1;
+      setFoundCount(newFoundCount);
+      
+      if (newFoundCount >= totalToFind) {
+        setTimeout(() => {
           setLevel((l) => l + 1);
-          if (level < 4) {
-            setGridSize((s) => Math.min(s + 1, 6));
+          if (level < 5) {
+            setGridSize((s) => Math.min(s + 1, 5));
           }
           setGameState('ready');
+        }, 800);
+      } else {
+        const remainingObjects = objectsToFind.filter((obj, idx) => {
+          const foundInGrid = grid.find(c => c.object === obj && c.found);
+          return !foundInGrid && obj !== targetObject;
+        });
+        
+        if (remainingObjects.length > 0) {
+          const nextTarget = remainingObjects[Math.floor(Math.random() * remainingObjects.length)];
+          setTargetObject(nextTarget);
+          setWrongAttempts(0);
         }
       }
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setWrongAttempts((w) => w + 1);
+      
       setGrid((prev) =>
         prev.map((c) =>
           c.id === cell.id ? { ...c, revealed: true } : c
         )
       );
+      
       setTimeout(() => {
         setGrid((prev) =>
           prev.map((c) =>
             c.id === cell.id && !c.found ? { ...c, revealed: false } : c
           )
         );
-      }, 500);
+      }, 600);
     }
   };
 
@@ -179,6 +188,9 @@ export default function MemoryGridScreen() {
     setScore(0);
     setLevel(1);
     setGridSize(3);
+    setFoundCount(0);
+    setTotalToFind(0);
+    setObjectsToFind([]);
     setGameState('ready');
   };
 
@@ -286,6 +298,11 @@ export default function MemoryGridScreen() {
                 ]}
               >
                 <ThemedText style={styles.targetEmoji}>{targetObject}</ThemedText>
+              </View>
+              <View style={[styles.progressBadge, { backgroundColor: theme.success + '20' }]}>
+                <ThemedText type="small" style={{ color: theme.success }}>
+                  {foundCount}/{totalToFind}
+                </ThemedText>
               </View>
             </View>
           )}
@@ -399,6 +416,12 @@ const styles = StyleSheet.create({
   },
   targetEmoji: {
     fontSize: 32,
+  },
+  progressBadge: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    marginLeft: Spacing.sm,
   },
   memorizeText: {
     textAlign: 'center',
