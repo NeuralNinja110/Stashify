@@ -10,6 +10,7 @@ import MemoryGridScreen from '@/screens/MemoryGridScreen';
 import WordChainScreen from '@/screens/WordChainScreen';
 import EchoChroniclesScreen from '@/screens/EchoChroniclesScreen';
 import RiddlesScreen from '@/screens/RiddlesScreen';
+import FamilyQuizScreen from '@/screens/FamilyQuizScreen';
 import LeaderboardScreen from '@/screens/LeaderboardScreen';
 import AddMomentScreen from '@/screens/AddMomentScreen';
 import AddFamilyMemberScreen from '@/screens/AddFamilyMemberScreen';
@@ -125,7 +126,7 @@ export default function RootStackNavigator() {
           />
           <Stack.Screen
             name="FamilyQuiz"
-            component={MemoryGridScreen}
+            component={FamilyQuizScreen}
             options={{
               presentation: 'fullScreenModal',
               headerShown: false,
