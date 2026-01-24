@@ -51,10 +51,65 @@ export default function MemoryGridScreen() {
   const [objectsToFind, setObjectsToFind] = useState<string[]>([]);
   const [foundCount, setFoundCount] = useState(0);
   const [totalToFind, setTotalToFind] = useState(0);
+  
+  // Adaptive difficulty tracking
+  const [correctStreak, setCorrectStreak] = useState(0);
+  const [totalCorrect, setTotalCorrect] = useState(0);
+  const [totalWrong, setTotalWrong] = useState(0);
+  const [difficultyMultiplier, setDifficultyMultiplier] = useState(1.0);
+
+  // Calculate accuracy percentage
+  const accuracy = useMemo(() => {
+    const total = totalCorrect + totalWrong;
+    return total > 0 ? Math.round((totalCorrect / total) * 100) : 100;
+  }, [totalCorrect, totalWrong]);
+
+  // Adjust difficulty based on performance
+  const adjustDifficulty = useCallback((wasCorrect: boolean) => {
+    if (wasCorrect) {
+      setCorrectStreak(prev => prev + 1);
+      setTotalCorrect(prev => prev + 1);
+      
+      // Increase difficulty after 3 correct in a row
+      if (correctStreak >= 2) {
+        setDifficultyMultiplier(prev => Math.min(prev + 0.1, 2.0));
+      }
+    } else {
+      setCorrectStreak(0);
+      setTotalWrong(prev => prev + 1);
+      
+      // Decrease difficulty after wrong answer
+      setDifficultyMultiplier(prev => Math.max(prev - 0.15, 0.5));
+    }
+  }, [correctStreak]);
+
+  // Get memorization time based on difficulty
+  const getMemorizeTime = useCallback(() => {
+    const baseTime = 4000;
+    const levelBonus = level * 300;
+    const difficultyAdjust = (2.0 - difficultyMultiplier) * 1000;
+    return Math.max(baseTime - levelBonus + difficultyAdjust, 2000);
+  }, [level, difficultyMultiplier]);
+
+  // Get play time based on difficulty
+  const getPlayTime = useCallback(() => {
+    const baseTime = 20;
+    const levelBonus = level * 3;
+    const difficultyAdjust = Math.round((2.0 - difficultyMultiplier) * 5);
+    return Math.max(baseTime + difficultyAdjust - Math.floor(level / 2), 10);
+  }, [level, difficultyMultiplier]);
+
+  // Get object count based on difficulty
+  const getObjectCount = useCallback(() => {
+    const totalCells = gridSize * gridSize;
+    const baseCount = Math.floor(totalCells / 3);
+    const difficultyBonus = Math.floor(difficultyMultiplier * 1.5);
+    return Math.min(Math.max(baseCount + difficultyBonus, 3), Math.floor(totalCells / 2));
+  }, [gridSize, difficultyMultiplier]);
 
   const initializeGame = useCallback(() => {
     const totalCells = gridSize * gridSize;
-    const objectCount = Math.min(Math.floor(totalCells / 2), 6);
+    const objectCount = getObjectCount();
     const shuffledObjects = [...OBJECTS].sort(() => Math.random() - 0.5);
     const selectedObjects = shuffledObjects.slice(0, objectCount);
     
@@ -85,7 +140,7 @@ export default function MemoryGridScreen() {
     setFoundCount(0);
     setTotalToFind(selectedObjects.length);
     setWrongAttempts(0);
-  }, [gridSize]);
+  }, [gridSize, getObjectCount]);
 
   useEffect(() => {
     if (gameState === 'ready') {
@@ -95,15 +150,16 @@ export default function MemoryGridScreen() {
 
   useEffect(() => {
     if (gameState === 'memorize') {
+      const memorizeTime = getMemorizeTime();
       const timer = setTimeout(() => {
         setGrid((prev) =>
           prev.map((cell) => ({ ...cell, revealed: false }))
         );
         setGameState('playing');
-      }, 3000 + level * 500);
+      }, memorizeTime);
       return () => clearTimeout(timer);
     }
-  }, [gameState, level]);
+  }, [gameState, getMemorizeTime]);
 
   useEffect(() => {
     if (gameState === 'playing' && timeLeft > 0) {
@@ -123,7 +179,7 @@ export default function MemoryGridScreen() {
       }))
     );
     setGameState('memorize');
-    setTimeLeft(15 + level * 5);
+    setTimeLeft(getPlayTime());
   };
 
   const handleCellPress = (cell: GridCell) => {
@@ -133,6 +189,7 @@ export default function MemoryGridScreen() {
 
     if (cell.object === targetObject) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      adjustDifficulty(true);
       
       setGrid((prev) =>
         prev.map((c) =>
@@ -140,7 +197,9 @@ export default function MemoryGridScreen() {
         )
       );
       
-      const points = Math.max(10 * level - wrongAttempts * 2, 5);
+      // Bonus points for streaks
+      const streakBonus = correctStreak >= 2 ? correctStreak * 2 : 0;
+      const points = Math.max(10 * level - wrongAttempts * 2, 5) + streakBonus;
       setScore((s) => s + points);
       
       const newFoundCount = foundCount + 1;
@@ -149,8 +208,11 @@ export default function MemoryGridScreen() {
       if (newFoundCount >= totalToFind) {
         setTimeout(() => {
           setLevel((l) => l + 1);
-          if (level < 5) {
+          // Adaptive grid size based on performance
+          if (accuracy >= 80 && level < 5) {
             setGridSize((s) => Math.min(s + 1, 5));
+          } else if (accuracy < 50 && gridSize > 3) {
+            setGridSize((s) => Math.max(s - 1, 3));
           }
           setGameState('ready');
         }, 800);
@@ -168,6 +230,7 @@ export default function MemoryGridScreen() {
       }
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      adjustDifficulty(false);
       setWrongAttempts((w) => w + 1);
       
       setGrid((prev) =>
@@ -193,6 +256,10 @@ export default function MemoryGridScreen() {
     setFoundCount(0);
     setTotalToFind(0);
     setObjectsToFind([]);
+    setCorrectStreak(0);
+    setTotalCorrect(0);
+    setTotalWrong(0);
+    setDifficultyMultiplier(1.0);
     setGameState('ready');
   };
 
