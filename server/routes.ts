@@ -711,6 +711,284 @@ Only return the JSON array.`;
     }
   });
 
+  // ===== WORD CHAIN MULTIPLAYER ROUTES =====
+  
+  // Create a Word Chain multiplayer room
+  app.post("/api/games/wordchain/rooms", async (req: Request, res: Response) => {
+    try {
+      const { userId, playerName } = req.body;
+      
+      if (!userId || !playerName) {
+        return res.status(400).json({ error: "userId and playerName are required" });
+      }
+
+      // Generate word options for the game
+      const wordPool = [
+        'apple', 'banana', 'cherry', 'dragon', 'elephant', 'flower', 'garden', 'happy',
+        'island', 'jungle', 'kite', 'lemon', 'mango', 'nature', 'orange', 'purple',
+        'queen', 'rainbow', 'sunset', 'tiger', 'umbrella', 'village', 'water', 'yellow',
+        'zebra', 'anchor', 'basket', 'candle', 'dolphin', 'eagle', 'forest', 'guitar'
+      ];
+      
+      // Select 4 random words as initial options
+      const shuffled = [...wordPool].sort(() => Math.random() - 0.5);
+      const wordOptions = shuffled.slice(0, 4);
+      
+      const gameState = {
+        wordChain: [] as string[],
+        currentTurn: 1,
+        player1: { id: userId, name: playerName, score: 0 },
+        player2: null as { id: string; name: string; score: number } | null,
+        phase: 'waiting', // waiting, selecting, memorizing, recalling, gameOver
+        wordOptions,
+        wordPool: shuffled.slice(4),
+        lastAction: Date.now(),
+        winner: null as string | null,
+        currentRecallIndex: 0,
+        showWords: false,
+        failedPlayer: null as number | null,
+      };
+
+      const session = await storage.createGameSession({
+        gameType: 'word-chain-memory',
+        mode: 'multiplayer',
+        status: 'waiting',
+        hostUserId: userId,
+        maxPlayers: 2,
+        gameState,
+      });
+
+      res.json({ 
+        roomCode: session.roomCode, 
+        sessionId: session.id,
+        gameState: session.gameState
+      });
+    } catch (error) {
+      console.error("Create room error:", error);
+      res.status(500).json({ error: "Failed to create room" });
+    }
+  });
+
+  // Join a Word Chain room
+  app.post("/api/games/wordchain/rooms/join", async (req: Request, res: Response) => {
+    try {
+      const { roomCode, userId, playerName } = req.body;
+      
+      if (!roomCode || !userId || !playerName) {
+        return res.status(400).json({ error: "roomCode, userId, and playerName are required" });
+      }
+
+      const session = await storage.getGameSessionByCode(roomCode.toUpperCase());
+      
+      if (!session) {
+        return res.status(404).json({ error: "Room not found or game already started" });
+      }
+
+      const gameState = session.gameState as any;
+      
+      if (gameState.player2) {
+        return res.status(400).json({ error: "Room is full" });
+      }
+
+      // Add player 2
+      gameState.player2 = { id: userId, name: playerName, score: 0 };
+      gameState.phase = 'selecting';
+      gameState.lastAction = Date.now();
+
+      await storage.updateGameSession(session.id, {
+        status: 'active',
+        gameState,
+      });
+
+      res.json({ 
+        sessionId: session.id,
+        roomCode: session.roomCode,
+        gameState 
+      });
+    } catch (error) {
+      console.error("Join room error:", error);
+      res.status(500).json({ error: "Failed to join room" });
+    }
+  });
+
+  // Get Word Chain game state (polling)
+  app.get("/api/games/wordchain/rooms/:sessionId", async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.params;
+      const session = await storage.getGameSession(sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ error: "Game not found" });
+      }
+
+      res.json({
+        sessionId: session.id,
+        roomCode: session.roomCode,
+        status: session.status,
+        gameState: session.gameState,
+      });
+    } catch (error) {
+      console.error("Get game state error:", error);
+      res.status(500).json({ error: "Failed to get game state" });
+    }
+  });
+
+  // Submit a move in Word Chain
+  app.post("/api/games/wordchain/rooms/:sessionId/move", async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.params;
+      const { userId, action, selectedWord, recalledWord } = req.body;
+      
+      const session = await storage.getGameSession(sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ error: "Game not found" });
+      }
+
+      const gameState = session.gameState as any;
+      const isPlayer1 = gameState.player1?.id === userId;
+      const isPlayer2 = gameState.player2?.id === userId;
+      
+      if (!isPlayer1 && !isPlayer2) {
+        return res.status(403).json({ error: "You are not a player in this game" });
+      }
+
+      const playerNum = isPlayer1 ? 1 : 2;
+      const isCurrentPlayer = gameState.currentTurn === playerNum;
+
+      if (!isCurrentPlayer && action !== 'ready') {
+        return res.status(400).json({ error: "Not your turn" });
+      }
+
+      // Handle different actions
+      if (action === 'select') {
+        // Player is selecting a new word to add to the chain
+        if (gameState.phase !== 'selecting') {
+          return res.status(400).json({ error: "Cannot select word now" });
+        }
+
+        if (!gameState.wordOptions.includes(selectedWord)) {
+          return res.status(400).json({ error: "Invalid word selection" });
+        }
+
+        // Add word to chain
+        gameState.wordChain.push(selectedWord);
+        
+        // Remove selected word from options and add a new one
+        gameState.wordOptions = gameState.wordOptions.filter((w: string) => w !== selectedWord);
+        if (gameState.wordPool.length > 0) {
+          gameState.wordOptions.push(gameState.wordPool.shift());
+        }
+        
+        // Switch to other player's turn
+        gameState.currentTurn = playerNum === 1 ? 2 : 1;
+        gameState.phase = 'memorizing';
+        gameState.showWords = true;
+        gameState.currentRecallIndex = 0;
+        gameState.lastAction = Date.now();
+
+        // Update player score
+        if (isPlayer1) {
+          gameState.player1.score += 10;
+        } else {
+          gameState.player2.score += 10;
+        }
+
+      } else if (action === 'ready_to_recall') {
+        // Player has finished memorizing and is ready to recall
+        gameState.phase = 'recalling';
+        gameState.showWords = false;
+        gameState.currentRecallIndex = 0;
+        gameState.lastAction = Date.now();
+
+      } else if (action === 'recall') {
+        // Player is recalling words in order
+        if (gameState.phase !== 'recalling') {
+          return res.status(400).json({ error: "Cannot recall now" });
+        }
+
+        const expectedWord = gameState.wordChain[gameState.currentRecallIndex];
+        
+        if (recalledWord !== expectedWord) {
+          // Wrong recall - game over
+          gameState.phase = 'gameOver';
+          gameState.failedPlayer = playerNum;
+          gameState.winner = playerNum === 1 ? gameState.player2?.name : gameState.player1?.name;
+          gameState.showWords = true;
+          
+          await storage.updateGameSession(session.id, {
+            status: 'completed',
+            gameState,
+            completedAt: new Date(),
+          });
+
+          return res.json({ gameState, result: 'wrong', expectedWord });
+        }
+
+        // Correct recall
+        gameState.currentRecallIndex++;
+        
+        // Check if all words recalled
+        if (gameState.currentRecallIndex >= gameState.wordChain.length) {
+          // Successfully recalled all - now select a new word
+          gameState.phase = 'selecting';
+          gameState.currentRecallIndex = 0;
+          
+          // Bonus points for complete recall
+          if (isPlayer1) {
+            gameState.player1.score += gameState.wordChain.length * 5;
+          } else {
+            gameState.player2.score += gameState.wordChain.length * 5;
+          }
+        }
+
+        gameState.lastAction = Date.now();
+      }
+
+      await storage.updateGameSession(session.id, { gameState });
+
+      res.json({ gameState });
+    } catch (error) {
+      console.error("Move error:", error);
+      res.status(500).json({ error: "Failed to process move" });
+    }
+  });
+
+  // Leave/Forfeit Word Chain game
+  app.post("/api/games/wordchain/rooms/:sessionId/leave", async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.params;
+      const { userId } = req.body;
+      
+      const session = await storage.getGameSession(sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ error: "Game not found" });
+      }
+
+      const gameState = session.gameState as any;
+      const isPlayer1 = gameState.player1?.id === userId;
+      const isPlayer2 = gameState.player2?.id === userId;
+
+      if (isPlayer1 || isPlayer2) {
+        gameState.phase = 'gameOver';
+        gameState.winner = isPlayer1 ? gameState.player2?.name : gameState.player1?.name;
+        gameState.failedPlayer = isPlayer1 ? 1 : 2;
+
+        await storage.updateGameSession(session.id, {
+          status: 'completed',
+          gameState,
+          completedAt: new Date(),
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Leave game error:", error);
+      res.status(500).json({ error: "Failed to leave game" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
