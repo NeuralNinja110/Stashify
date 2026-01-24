@@ -42,16 +42,6 @@ export default function RiddlesScreen() {
 
   const cardScale = useSharedValue(1);
 
-  const defaultRiddles: Riddle[] = [
-    { question: "What has hands but can't clap?", answer: "clock", hint: "It tells time" },
-    { question: "What has a head and a tail but no body?", answer: "coin", hint: "You use it to buy things" },
-    { question: "What gets wetter the more it dries?", answer: "towel", hint: "You use it after bathing" },
-    { question: "What can you catch but not throw?", answer: "cold", hint: "You might sneeze" },
-    { question: "What has keys but no locks?", answer: "piano", hint: "It makes music" },
-    { question: "What has one eye but can't see?", answer: "needle", hint: "Used for sewing" },
-    { question: "What goes up but never comes down?", answer: "age", hint: "Everyone gets older" },
-    { question: "What has a neck but no head?", answer: "bottle", hint: "You drink from it" },
-  ];
 
   useEffect(() => {
     loadRiddles();
@@ -77,7 +67,6 @@ export default function RiddlesScreen() {
     } catch (error) {
       console.error('Failed to load riddles:', error);
     }
-    setRiddles(defaultRiddles);
     setIsLoading(false);
   };
 
@@ -160,7 +149,7 @@ export default function RiddlesScreen() {
     transform: [{ scale: cardScale.value }],
   }));
 
-  const currentRiddle = riddles[currentIndex] || defaultRiddles[0];
+  const currentRiddle = riddles[currentIndex] || { question: '', answer: '', hint: '' };
 
   return (
     <ThemedView
