@@ -12,7 +12,7 @@ import { Button } from '@/components/Button';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
-import { api } from '@/lib/api';
+import { apiRequest, getApiUrl } from '@/lib/query-client';
 
 interface GameStats {
   gameType: string;
@@ -111,11 +111,21 @@ export default function CognitiveReportScreen() {
     setError(null);
     
     try {
-      const response = await api.post(`/api/cognitive-report/${user.id}`);
-      setReport(response.data);
+      const response = await fetch(new URL(`/api/cognitive-report/${user.id}`, getApiUrl()).toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate report');
+      }
+      
+      const data = await response.json();
+      setReport(data);
     } catch (err: any) {
       console.error('Failed to generate report:', err);
-      setError(err.response?.data?.error || 'Failed to generate report. Please try again.');
+      setError(err.message || 'Failed to generate report. Please try again.');
     } finally {
       setLoading(false);
     }
