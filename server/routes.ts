@@ -9,16 +9,16 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-// OpenRouter API helper - using Mistral Small (natural responses, no thinking)
+// OpenRouter API helper - using nvidia/nemotron-3-nano-30b-a3b:free-0
 async function callOpenRouter(messages: { role: string; content: string }[], systemPrompt?: string) {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "nvidia/nemotron-3-nano-30b-a3b:free",
+      model: "nvidia/nemotron-3-nano-30b-a3b:free-0",
       messages: systemPrompt 
         ? [{ role: "system", content: systemPrompt }, ...messages]
         : messages,
