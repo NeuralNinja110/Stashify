@@ -60,7 +60,7 @@ export default function MomentsScreen() {
   };
 
   const handlePlayMoment = (moment: Moment) => {
-    navigation.navigate('PlayMoment', { momentId: moment.id });
+    navigation.navigate('MomentDetail', { momentId: moment.id });
   };
 
   const renderMoment = ({ item, index }: { item: Moment; index: number }) => (

@@ -35,7 +35,6 @@ export type RootStackParamList = {
   FamilyQuiz: undefined;
   AddMoment: undefined;
   MomentDetail: { momentId: string };
-  PlayMoment: { momentId: string };
   AddFamilyMember: undefined;
   FamilyMemberDetail: { memberId: string };
   AddReminder: undefined;
