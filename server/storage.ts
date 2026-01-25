@@ -292,10 +292,12 @@ export class MemStorage implements IStorage {
     const entries: LeaderboardEntry[] = [];
     for (const [userId, data] of userScores.entries()) {
       const user = await this.getUser(userId);
-      if (!user) continue;
+      
+      // Use user name if found, otherwise use "Player" with a short ID
+      const userName = user?.name || `Player ${userId.slice(-4)}`;
       
       const currentYear = new Date().getFullYear();
-      const age = user.birthYear ? currentYear - user.birthYear : 65;
+      const age = user?.birthYear ? currentYear - user.birthYear : 65;
       let userAgeGroup = '60-69';
       if (age >= 70 && age < 80) userAgeGroup = '70-79';
       else if (age >= 80) userAgeGroup = '80+';
@@ -306,7 +308,7 @@ export class MemStorage implements IStorage {
       entries.push({
         rank: 0,
         userId,
-        userName: user.name,
+        userName,
         score: data.totalScore,
         ageGroup: userAgeGroup,
         gamesPlayed: data.gamesPlayed,
@@ -322,7 +324,7 @@ export class MemStorage implements IStorage {
   async getOverallLeaderboard(limit = 10): Promise<LeaderboardEntry[]> {
     const scores = Array.from(this.gameScores.values());
     
-    const userScores = new Map<string, { totalScore: number; gamesPlayed: number }>();
+    const userScores = new Map<string, { totalScore: number; gamesPlayed: number; userName?: string }>();
     
     for (const score of scores) {
       const existing = userScores.get(score.userId) || { totalScore: 0, gamesPlayed: 0 };
@@ -334,10 +336,12 @@ export class MemStorage implements IStorage {
     const entries: LeaderboardEntry[] = [];
     for (const [userId, data] of userScores.entries()) {
       const user = await this.getUser(userId);
-      if (!user) continue;
+      
+      // Use user name if found, otherwise use "Player" with a short ID
+      const userName = user?.name || `Player ${userId.slice(-4)}`;
       
       const currentYear = new Date().getFullYear();
-      const age = user.birthYear ? currentYear - user.birthYear : 65;
+      const age = user?.birthYear ? currentYear - user.birthYear : 65;
       let userAgeGroup = '60-69';
       if (age >= 70 && age < 80) userAgeGroup = '70-79';
       else if (age >= 80) userAgeGroup = '80+';
@@ -346,7 +350,7 @@ export class MemStorage implements IStorage {
       entries.push({
         rank: 0,
         userId,
-        userName: user.name,
+        userName,
         score: data.totalScore,
         ageGroup: userAgeGroup,
         gamesPlayed: data.gamesPlayed,
