@@ -8,8 +8,12 @@ import {
   type GamePlayer, type InsertGamePlayer,
   type ChatHistory, type InsertChatHistory,
   type CognitiveReport,
-  type LeaderboardEntry
+  type LeaderboardEntry,
+  users, moments, familyMembers, reminders,
+  gameSessions, gameScores, gamePlayers, chatHistory, cognitiveReports
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc, and, asc, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -70,215 +74,204 @@ export interface IStorage {
   generateCognitiveReport(userId: string): Promise<CognitiveReport>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User> = new Map();
-  private moments: Map<string, Moment> = new Map();
-  private familyMembers: Map<string, FamilyMember> = new Map();
-  private reminders: Map<string, Reminder> = new Map();
-  private gameSessions: Map<string, GameSession> = new Map();
-  private gameScores: Map<string, GameScore> = new Map();
-  private gamePlayers: Map<string, GamePlayer> = new Map();
-  private chatHistory: Map<string, ChatHistory> = new Map();
-  private cognitiveReports: Map<string, CognitiveReport> = new Map();
-
+// DatabaseStorage using Drizzle ORM with PostgreSQL
+export class DatabaseStorage implements IStorage {
   // Users
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByPin(pin: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(u => u.pin === pin);
+    const [user] = await db.select().from(users).where(eq(users.pin, pin));
+    return user || undefined;
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const now = new Date();
-    const newUser: User = { 
-      ...user, 
-      id, 
+    const [newUser] = await db.insert(users).values({
+      ...user,
       interests: user.interests || [],
       language: user.language || 'en',
-      createdAt: now, 
-      updatedAt: now 
-    };
-    this.users.set(id, newUser);
+    }).returning();
     return newUser;
   }
 
   async updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined> {
-    const user = this.users.get(id);
-    if (!user) return undefined;
-    const updated = { ...user, ...updates, updatedAt: new Date() };
-    this.users.set(id, updated);
-    return updated;
+    const [updated] = await db.update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   // Moments
   async getMoments(userId: string): Promise<Moment[]> {
-    return Array.from(this.moments.values())
-      .filter(m => m.userId === userId)
-      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+    return await db.select().from(moments)
+      .where(eq(moments.userId, userId))
+      .orderBy(desc(moments.createdAt));
   }
 
   async getMoment(id: string): Promise<Moment | undefined> {
-    return this.moments.get(id);
+    const [moment] = await db.select().from(moments).where(eq(moments.id, id));
+    return moment || undefined;
   }
 
   async createMoment(moment: InsertMoment): Promise<Moment> {
-    const id = randomUUID();
-    const now = new Date();
-    const newMoment: Moment = { 
-      ...moment, 
-      id, 
+    console.log('DatabaseStorage.createMoment called with:', {
+      userId: moment.userId,
+      title: moment.title,
+      hasAudio: !!moment.audioUri,
+      audioLength: moment.audioUri?.length || 0
+    });
+    const [newMoment] = await db.insert(moments).values({
+      ...moment,
       tags: moment.tags || [],
-      createdAt: now, 
-      updatedAt: now 
-    };
-    this.moments.set(id, newMoment);
+    }).returning();
+    console.log('Moment saved to database:', { id: newMoment.id, title: newMoment.title });
     return newMoment;
   }
 
   async updateMoment(id: string, updates: Partial<InsertMoment>): Promise<Moment | undefined> {
-    const moment = this.moments.get(id);
-    if (!moment) return undefined;
-    const updated = { ...moment, ...updates, updatedAt: new Date() };
-    this.moments.set(id, updated);
-    return updated;
+    const [updated] = await db.update(moments)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(moments.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deleteMoment(id: string): Promise<boolean> {
-    return this.moments.delete(id);
+    const result = await db.delete(moments).where(eq(moments.id, id));
+    return true;
   }
 
   // Family Members
   async getFamilyMembers(userId: string): Promise<FamilyMember[]> {
-    return Array.from(this.familyMembers.values()).filter(m => m.userId === userId);
+    return await db.select().from(familyMembers).where(eq(familyMembers.userId, userId));
   }
 
   async getFamilyMember(id: string): Promise<FamilyMember | undefined> {
-    return this.familyMembers.get(id);
+    const [member] = await db.select().from(familyMembers).where(eq(familyMembers.id, id));
+    return member || undefined;
   }
 
   async createFamilyMember(member: InsertFamilyMember): Promise<FamilyMember> {
-    const id = randomUUID();
-    const newMember: FamilyMember = { ...member, id, createdAt: new Date() };
-    this.familyMembers.set(id, newMember);
+    const [newMember] = await db.insert(familyMembers).values(member).returning();
     return newMember;
   }
 
   async updateFamilyMember(id: string, updates: Partial<InsertFamilyMember>): Promise<FamilyMember | undefined> {
-    const member = this.familyMembers.get(id);
-    if (!member) return undefined;
-    const updated = { ...member, ...updates };
-    this.familyMembers.set(id, updated);
-    return updated;
+    const [updated] = await db.update(familyMembers)
+      .set(updates)
+      .where(eq(familyMembers.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deleteFamilyMember(id: string): Promise<boolean> {
-    return this.familyMembers.delete(id);
+    await db.delete(familyMembers).where(eq(familyMembers.id, id));
+    return true;
   }
 
   // Reminders
   async getReminders(userId: string): Promise<Reminder[]> {
-    return Array.from(this.reminders.values()).filter(r => r.userId === userId);
+    return await db.select().from(reminders).where(eq(reminders.userId, userId));
   }
 
   async getReminder(id: string): Promise<Reminder | undefined> {
-    return this.reminders.get(id);
+    const [reminder] = await db.select().from(reminders).where(eq(reminders.id, id));
+    return reminder || undefined;
   }
 
   async createReminder(reminder: InsertReminder): Promise<Reminder> {
-    const id = randomUUID();
-    const newReminder: Reminder = { 
-      ...reminder, 
-      id, 
+    const [newReminder] = await db.insert(reminders).values({
+      ...reminder,
       days: reminder.days || [],
       recurring: reminder.recurring || false,
       enabled: reminder.enabled !== false,
-      createdAt: new Date() 
-    };
-    this.reminders.set(id, newReminder);
+    }).returning();
     return newReminder;
   }
 
   async updateReminder(id: string, updates: Partial<InsertReminder>): Promise<Reminder | undefined> {
-    const reminder = this.reminders.get(id);
-    if (!reminder) return undefined;
-    const updated = { ...reminder, ...updates };
-    this.reminders.set(id, updated);
-    return updated;
+    const [updated] = await db.update(reminders)
+      .set(updates)
+      .where(eq(reminders.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deleteReminder(id: string): Promise<boolean> {
-    return this.reminders.delete(id);
+    await db.delete(reminders).where(eq(reminders.id, id));
+    return true;
   }
 
   // Game Sessions
   async getGameSession(id: string): Promise<GameSession | undefined> {
-    return this.gameSessions.get(id);
+    const [session] = await db.select().from(gameSessions).where(eq(gameSessions.id, id));
+    return session || undefined;
   }
 
   async getGameSessionByCode(code: string): Promise<GameSession | undefined> {
-    return Array.from(this.gameSessions.values()).find(s => s.roomCode === code && s.status === 'waiting');
+    const [session] = await db.select().from(gameSessions)
+      .where(and(eq(gameSessions.roomCode, code), eq(gameSessions.status, 'waiting')));
+    return session || undefined;
   }
 
   async getActiveGameSessions(gameType?: string): Promise<GameSession[]> {
-    return Array.from(this.gameSessions.values())
-      .filter(s => s.status === 'waiting' && (!gameType || s.gameType === gameType));
+    if (gameType) {
+      return await db.select().from(gameSessions)
+        .where(and(eq(gameSessions.status, 'waiting'), eq(gameSessions.gameType, gameType)));
+    }
+    return await db.select().from(gameSessions).where(eq(gameSessions.status, 'waiting'));
   }
 
   async createGameSession(session: InsertGameSession): Promise<GameSession> {
-    const id = randomUUID();
     const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const newSession: GameSession = { 
-      ...session, 
-      id, 
+    const [newSession] = await db.insert(gameSessions).values({
+      ...session,
       roomCode,
       maxPlayers: session.maxPlayers || 4,
-      createdAt: new Date(),
-      completedAt: null
-    };
-    this.gameSessions.set(id, newSession);
+    }).returning();
     return newSession;
   }
 
   async updateGameSession(id: string, updates: Partial<InsertGameSession>): Promise<GameSession | undefined> {
-    const session = this.gameSessions.get(id);
-    if (!session) return undefined;
-    const updated = { ...session, ...updates };
-    this.gameSessions.set(id, updated);
-    return updated;
+    const [updated] = await db.update(gameSessions)
+      .set(updates)
+      .where(eq(gameSessions.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   // Game Scores
   async getGameScores(userId: string, gameType?: string): Promise<GameScore[]> {
-    return Array.from(this.gameScores.values())
-      .filter(s => s.userId === userId && (!gameType || s.gameType === gameType))
-      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+    if (gameType) {
+      return await db.select().from(gameScores)
+        .where(and(eq(gameScores.userId, userId), eq(gameScores.gameType, gameType)))
+        .orderBy(desc(gameScores.createdAt));
+    }
+    return await db.select().from(gameScores)
+      .where(eq(gameScores.userId, userId))
+      .orderBy(desc(gameScores.createdAt));
   }
 
   async getTopScores(gameType: string, limit = 10): Promise<GameScore[]> {
-    return Array.from(this.gameScores.values())
-      .filter(s => s.gameType === gameType)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+    return await db.select().from(gameScores)
+      .where(eq(gameScores.gameType, gameType))
+      .orderBy(desc(gameScores.score))
+      .limit(limit);
   }
 
   async createGameScore(score: InsertGameScore): Promise<GameScore> {
-    const id = randomUUID();
-    const newScore: GameScore = { 
-      ...score, 
-      id, 
+    const [newScore] = await db.insert(gameScores).values({
+      ...score,
       level: score.level || 1,
-      createdAt: new Date() 
-    };
-    this.gameScores.set(id, newScore);
+    }).returning();
     return newScore;
   }
 
   async getLeaderboard(gameType: string, ageGroup?: string): Promise<LeaderboardEntry[]> {
-    const scores = Array.from(this.gameScores.values())
-      .filter(s => s.gameType === gameType);
+    const scores = await db.select().from(gameScores).where(eq(gameScores.gameType, gameType));
     
     const userScores = new Map<string, { totalScore: number; gamesPlayed: number }>();
     
@@ -292,8 +285,6 @@ export class MemStorage implements IStorage {
     const entries: LeaderboardEntry[] = [];
     for (const [userId, data] of userScores.entries()) {
       const user = await this.getUser(userId);
-      
-      // Use user name if found, otherwise use "Player" with a short ID
       const userName = user?.name || `Player ${userId.slice(-4)}`;
       
       const currentYear = new Date().getFullYear();
@@ -322,9 +313,9 @@ export class MemStorage implements IStorage {
   }
 
   async getOverallLeaderboard(limit = 10): Promise<LeaderboardEntry[]> {
-    const scores = Array.from(this.gameScores.values());
+    const scores = await db.select().from(gameScores);
     
-    const userScores = new Map<string, { totalScore: number; gamesPlayed: number; userName?: string }>();
+    const userScores = new Map<string, { totalScore: number; gamesPlayed: number }>();
     
     for (const score of scores) {
       const existing = userScores.get(score.userId) || { totalScore: 0, gamesPlayed: 0 };
@@ -336,8 +327,6 @@ export class MemStorage implements IStorage {
     const entries: LeaderboardEntry[] = [];
     for (const [userId, data] of userScores.entries()) {
       const user = await this.getUser(userId);
-      
-      // Use user name if found, otherwise use "Player" with a short ID
       const userName = user?.name || `Player ${userId.slice(-4)}`;
       
       const currentYear = new Date().getFullYear();
@@ -365,68 +354,55 @@ export class MemStorage implements IStorage {
 
   // Game Players
   async getGamePlayers(sessionId: string): Promise<GamePlayer[]> {
-    return Array.from(this.gamePlayers.values()).filter(p => p.sessionId === sessionId);
+    return await db.select().from(gamePlayers).where(eq(gamePlayers.sessionId, sessionId));
   }
 
   async addGamePlayer(player: InsertGamePlayer): Promise<GamePlayer> {
-    const id = randomUUID();
-    const newPlayer: GamePlayer = { 
-      ...player, 
-      id, 
+    const [newPlayer] = await db.insert(gamePlayers).values({
+      ...player,
       score: player.score || 0,
       isReady: player.isReady || false,
-      joinedAt: new Date() 
-    };
-    this.gamePlayers.set(id, newPlayer);
+    }).returning();
     return newPlayer;
   }
 
   async updateGamePlayer(id: string, updates: Partial<InsertGamePlayer>): Promise<GamePlayer | undefined> {
-    const player = this.gamePlayers.get(id);
-    if (!player) return undefined;
-    const updated = { ...player, ...updates };
-    this.gamePlayers.set(id, updated);
-    return updated;
+    const [updated] = await db.update(gamePlayers)
+      .set(updates)
+      .where(eq(gamePlayers.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async removeGamePlayer(sessionId: string, userId: string): Promise<boolean> {
-    for (const [id, player] of this.gamePlayers.entries()) {
-      if (player.sessionId === sessionId && player.userId === userId) {
-        return this.gamePlayers.delete(id);
-      }
-    }
-    return false;
+    await db.delete(gamePlayers)
+      .where(and(eq(gamePlayers.sessionId, sessionId), eq(gamePlayers.userId, userId)));
+    return true;
   }
 
   // Chat History
   async getChatHistory(userId: string, limit = 50): Promise<ChatHistory[]> {
-    return Array.from(this.chatHistory.values())
-      .filter(c => c.userId === userId)
-      .sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0))
-      .slice(-limit);
+    return await db.select().from(chatHistory)
+      .where(eq(chatHistory.userId, userId))
+      .orderBy(asc(chatHistory.createdAt))
+      .limit(limit);
   }
 
   async addChatMessage(message: InsertChatHistory): Promise<ChatHistory> {
-    const id = randomUUID();
-    const newMessage: ChatHistory = { ...message, id, createdAt: new Date() };
-    this.chatHistory.set(id, newMessage);
+    const [newMessage] = await db.insert(chatHistory).values(message).returning();
     return newMessage;
   }
 
   async clearChatHistory(userId: string): Promise<boolean> {
-    for (const [id, msg] of this.chatHistory.entries()) {
-      if (msg.userId === userId) {
-        this.chatHistory.delete(id);
-      }
-    }
+    await db.delete(chatHistory).where(eq(chatHistory.userId, userId));
     return true;
   }
 
   // Cognitive Reports
   async getCognitiveReports(userId: string): Promise<CognitiveReport[]> {
-    return Array.from(this.cognitiveReports.values())
-      .filter(r => r.userId === userId)
-      .sort((a, b) => (b.reportDate?.getTime() || 0) - (a.reportDate?.getTime() || 0));
+    return await db.select().from(cognitiveReports)
+      .where(eq(cognitiveReports.userId, userId))
+      .orderBy(desc(cognitiveReports.reportDate));
   }
 
   async generateCognitiveReport(userId: string): Promise<CognitiveReport> {
@@ -449,10 +425,8 @@ export class MemStorage implements IStorage {
     if (languageScore < 50) recommendations.push("Play Word Chain and Riddles to boost language skills");
     if (attentionScore < 50) recommendations.push("Try Echo Chronicles for better attention span");
 
-    const report: CognitiveReport = {
-      id: randomUUID(),
+    const [report] = await db.insert(cognitiveReports).values({
       userId,
-      reportDate: new Date(),
       overallScore,
       memoryScore,
       attentionScore,
@@ -464,11 +438,10 @@ export class MemStorage implements IStorage {
         languageGames: languageScores.length,
         attentionGames: attentionScores.length,
       },
-    };
+    }).returning();
 
-    this.cognitiveReports.set(report.id, report);
     return report;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
