@@ -300,6 +300,22 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
         hasAudio: !!req.body.audioUri,
         audioUriLength: req.body.audioUri?.length || 0
       });
+      
+      // Auto-create user if they don't exist
+      const userId = req.body.userId;
+      let user = await storage.getUser(userId);
+      if (!user) {
+        console.log('Creating user:', userId);
+        user = await storage.createUser({
+          name: 'Guest User',
+          pin: '0000',
+          language: 'en',
+          interests: []
+        });
+        // Update the userId to use the newly created user's ID
+        req.body.userId = user.id;
+      }
+      
       const moment = await storage.createMoment(req.body);
       console.log('Moment created:', { id: moment.id, title: moment.title });
       res.json(moment);
