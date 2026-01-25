@@ -22,6 +22,8 @@ import { ThemedView } from '@/components/ThemedView';
 import { Button } from '@/components/Button';
 import { useTheme } from '@/hooks/useTheme';
 import { Spacing, BorderRadius } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
+import { apiRequest } from '@/lib/query-client';
 
 const OBJECTS = ['🍎', '🍊', '🍋', '🍇', '🍓', '🥝', '🍑', '🍒', '🥥', '🌽', '🥕', '🍆'];
 
@@ -39,6 +41,7 @@ export default function MemoryGridScreen() {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { user } = useAuth();
 
   const [gridSize, setGridSize] = useState(3);
   const [grid, setGrid] = useState<GridCell[]>([]);
@@ -166,9 +169,25 @@ export default function MemoryGridScreen() {
       const timer = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
       return () => clearTimeout(timer);
     } else if (gameState === 'playing' && timeLeft === 0) {
-      setGameState('gameOver');
+      endGame();
     }
   }, [gameState, timeLeft]);
+
+  const endGame = async () => {
+    setGameState('gameOver');
+    
+    try {
+      await apiRequest('POST', '/api/games/scores', {
+        userId: user?.id || 'guest',
+        gameType: 'memory-grid',
+        score: score,
+        level: level,
+        metadata: { gridSize, wrongAttempts },
+      });
+    } catch (error) {
+      console.error('Failed to save score:', error);
+    }
+  };
 
   const handleStart = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

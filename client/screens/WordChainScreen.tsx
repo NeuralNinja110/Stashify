@@ -23,7 +23,7 @@ import { Button } from '@/components/Button';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
-import { getApiUrl } from '@/lib/query-client';
+import { getApiUrl, apiRequest } from '@/lib/query-client';
 
 type GamePhase = 'lobby' | 'waiting' | 'selecting' | 'memorizing' | 'recalling' | 'gameOver';
 
@@ -283,6 +283,22 @@ export default function WordChainScreen() {
       if (data.result === 'wrong') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setPhase('gameOver');
+        
+        // Save score to leaderboard
+        const myScore = data.gameState.player1?.id === user?.id 
+          ? data.gameState.player1?.score || 0 
+          : data.gameState.player2?.score || 0;
+        try {
+          await apiRequest('POST', '/api/games/scores', {
+            userId: user?.id || 'guest',
+            gameType: 'word-chain',
+            score: myScore,
+            level: 1,
+            metadata: { chainLength: data.gameState.wordChain?.length || 0 },
+          });
+        } catch (error) {
+          console.error('Failed to save score:', error);
+        }
       } else {
         setRecalledWords(prev => [...prev, word]);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

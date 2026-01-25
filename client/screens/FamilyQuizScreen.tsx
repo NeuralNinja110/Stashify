@@ -24,7 +24,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
-import { getApiUrl } from '@/lib/query-client';
+import { getApiUrl, apiRequest } from '@/lib/query-client';
 
 const { width } = Dimensions.get('window');
 
@@ -711,9 +711,21 @@ export default function FamilyQuizScreen() {
     resultOpacity.value = withTiming(1, { duration: 300 });
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (questionNumber >= 10) {
       setGameOver(true);
+      
+      try {
+        await apiRequest('POST', '/api/games/scores', {
+          userId: user?.id || 'guest',
+          gameType: 'family-quiz',
+          score: score,
+          level: 1,
+          metadata: { questionsAnswered: 10 },
+        });
+      } catch (error) {
+        console.error('Failed to save score:', error);
+      }
       return;
     }
     

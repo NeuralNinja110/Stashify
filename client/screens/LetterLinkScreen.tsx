@@ -22,7 +22,7 @@ import { Button } from '@/components/Button';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
-import { getApiUrl } from '@/lib/query-client';
+import { getApiUrl, apiRequest } from '@/lib/query-client';
 
 type GamePhase = 'lobby' | 'waiting' | 'playing' | 'gameOver';
 
@@ -211,6 +211,22 @@ export default function LetterLinkScreen() {
             ? Haptics.NotificationFeedbackType.Success 
             : Haptics.NotificationFeedbackType.Error
         );
+        
+        // Save score to leaderboard
+        const myScore = playerNum === 1 
+          ? data.gameState.player1?.score || 0 
+          : data.gameState.player2?.score || 0;
+        try {
+          await apiRequest('POST', '/api/games/scores', {
+            userId: user?.id || 'guest',
+            gameType: 'letter-link',
+            score: myScore,
+            level: 1,
+            metadata: { usedWords: data.gameState.usedWords?.length || 0 },
+          });
+        } catch (error) {
+          console.error('Failed to save score:', error);
+        }
       }
     } catch (err) {
       console.error('Select word error:', err);
