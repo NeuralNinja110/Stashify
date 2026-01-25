@@ -282,7 +282,21 @@ export default function MemoryGridScreen() {
     setGameState('ready');
   };
 
-  const handleExit = () => {
+  const handleExit = async () => {
+    // Save score if player has points before exiting
+    if (score > 0 && gameState !== 'ready') {
+      try {
+        await apiRequest('POST', '/api/games/scores', {
+          userId: user?.id || 'guest',
+          gameType: 'memory-grid',
+          score: score,
+          level: level,
+          metadata: { gridSize, wrongAttempts, exitedEarly: true },
+        });
+      } catch (error) {
+        console.error('Failed to save score:', error);
+      }
+    }
     navigation.goBack();
   };
 
