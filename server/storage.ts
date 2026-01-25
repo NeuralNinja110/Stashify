@@ -52,6 +52,7 @@ export interface IStorage {
   getTopScores(gameType: string, limit?: number): Promise<GameScore[]>;
   createGameScore(score: InsertGameScore): Promise<GameScore>;
   getLeaderboard(gameType: string, ageGroup?: string): Promise<LeaderboardEntry[]>;
+  getOverallLeaderboard(limit?: number): Promise<LeaderboardEntry[]>;
   
   // Game Players
   getGamePlayers(sessionId: string): Promise<GamePlayer[]>;
@@ -316,6 +317,46 @@ export class MemStorage implements IStorage {
     entries.forEach((e, i) => e.rank = i + 1);
 
     return entries.slice(0, 50);
+  }
+
+  async getOverallLeaderboard(limit = 10): Promise<LeaderboardEntry[]> {
+    const scores = Array.from(this.gameScores.values());
+    
+    const userScores = new Map<string, { totalScore: number; gamesPlayed: number }>();
+    
+    for (const score of scores) {
+      const existing = userScores.get(score.userId) || { totalScore: 0, gamesPlayed: 0 };
+      existing.totalScore += score.score;
+      existing.gamesPlayed += 1;
+      userScores.set(score.userId, existing);
+    }
+
+    const entries: LeaderboardEntry[] = [];
+    for (const [userId, data] of userScores.entries()) {
+      const user = await this.getUser(userId);
+      if (!user) continue;
+      
+      const currentYear = new Date().getFullYear();
+      const age = user.birthYear ? currentYear - user.birthYear : 65;
+      let userAgeGroup = '60-69';
+      if (age >= 70 && age < 80) userAgeGroup = '70-79';
+      else if (age >= 80) userAgeGroup = '80+';
+      else if (age < 60) userAgeGroup = '50-59';
+
+      entries.push({
+        rank: 0,
+        userId,
+        userName: user.name,
+        score: data.totalScore,
+        ageGroup: userAgeGroup,
+        gamesPlayed: data.gamesPlayed,
+      });
+    }
+
+    entries.sort((a, b) => b.score - a.score);
+    entries.forEach((e, i) => e.rank = i + 1);
+
+    return entries.slice(0, limit);
   }
 
   // Game Players

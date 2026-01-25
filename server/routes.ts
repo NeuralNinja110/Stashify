@@ -464,6 +464,16 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
   });
 
   // ===== LEADERBOARD ROUTES =====
+  app.get("/api/games/leaderboard", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const leaderboard = await storage.getOverallLeaderboard(limit);
+      res.json(leaderboard);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get overall leaderboard" });
+    }
+  });
+
   app.get("/api/leaderboard/:gameType", async (req: Request, res: Response) => {
     try {
       const ageGroup = req.query.ageGroup as string | undefined;
