@@ -68,11 +68,11 @@ export default function MomentsScreen() {
       <MomentCard
         moment={{
           id: item.id,
+          userId: item.userId,
           title: item.title,
-          description: item.description,
           photoUri: item.photoUri,
-          hasAudio: !!item.audioUri,
-          createdAt: new Date(item.createdAt),
+          audioUri: item.audioUri,
+          createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date(item.createdAt).toISOString(),
         }}
         onPress={() => handleMomentPress(item)}
         onPlay={() => handlePlayMoment(item)}

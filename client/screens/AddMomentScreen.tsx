@@ -111,19 +111,38 @@ export default function AddMomentScreen() {
     if (isRecording) {
       // Stop recording
       try {
-        if (recordingRef.current) {
-          await recordingRef.current.stopAndUnloadAsync();
-          const uri = recordingRef.current.getURI();
-          if (uri) {
-            setAudioUri(uri);
-            // Convert audio to base64 for storage
-            const base64 = await FileSystem.readAsStringAsync(uri, {
-              encoding: 'base64',
-            });
-            setAudioBase64(`data:audio/m4a;base64,${base64}`);
-            setHasRecording(true);
+        if (Platform.OS === 'web') {
+          // Web: Stop MediaRecorder
+          if (webRecorderRef.current && webRecorderRef.current.state === 'recording') {
+            webRecorderRef.current.stop();
           }
-          recordingRef.current = null;
+        } else {
+          // Native: Stop expo-av recording
+          if (recordingRef.current) {
+            console.log('Stopping native recording...');
+            await recordingRef.current.stopAndUnloadAsync();
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: false,
+            });
+            const uri = recordingRef.current.getURI();
+            console.log('Recording URI:', uri);
+            if (uri) {
+              setAudioUri(uri);
+              try {
+                const base64 = await FileSystem.readAsStringAsync(uri, {
+                  encoding: 'base64',
+                });
+                const dataUri = `data:audio/m4a;base64,${base64}`;
+                console.log('Audio base64 length:', base64.length);
+                setAudioBase64(dataUri);
+                setHasRecording(true);
+              } catch (fsError) {
+                console.error('FileSystem error:', fsError);
+                Alert.alert('Error', 'Failed to process audio file');
+              }
+            }
+            recordingRef.current = null;
+          }
         }
       } catch (error) {
         console.error('Error stopping recording:', error);
@@ -133,17 +152,58 @@ export default function AddMomentScreen() {
     } else {
       // Start recording
       try {
-        await Audio.requestPermissionsAsync();
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
-        
-        const { recording } = await Audio.Recording.createAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY
-        );
-        recordingRef.current = recording;
-        setIsRecording(true);
+        if (Platform.OS === 'web') {
+          // Web: Use MediaRecorder API
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mediaRecorder = new MediaRecorder(stream);
+          webChunksRef.current = [];
+          
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+              webChunksRef.current.push(e.data);
+            }
+          };
+          
+          mediaRecorder.onstop = async () => {
+            const blob = new Blob(webChunksRef.current, { type: 'audio/webm' });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64data = reader.result as string;
+              setAudioBase64(base64data);
+              setHasRecording(true);
+              console.log('Web audio recorded, length:', base64data.length);
+            };
+            reader.readAsDataURL(blob);
+            stream.getTracks().forEach(track => track.stop());
+          };
+          
+          webRecorderRef.current = mediaRecorder;
+          mediaRecorder.start();
+          setIsRecording(true);
+        } else {
+          // Native: Use expo-av
+          console.log('Requesting audio permissions...');
+          const permission = await Audio.requestPermissionsAsync();
+          console.log('Permission status:', permission.status);
+          
+          if (permission.status !== 'granted') {
+            Alert.alert('Permission Required', 'Please allow microphone access to record audio.');
+            return;
+          }
+          
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+          });
+          
+          console.log('Starting recording...');
+          const { recording } = await Audio.Recording.createAsync(
+            Audio.RecordingOptionsPresets.HIGH_QUALITY
+          );
+          recordingRef.current = recording;
+          setIsRecording(true);
+          console.log('Recording started');
+        }
       } catch (error) {
         console.error('Error starting recording:', error);
         Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');

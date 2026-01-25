@@ -74,7 +74,13 @@ export default function MomentDetailScreen() {
   };
 
   const handlePlayAudio = async () => {
-    if (!moment?.audioUri) return;
+    if (!moment?.audioUri) {
+      console.log('No audio URI available');
+      return;
+    }
+    
+    console.log('Playing audio, URI length:', moment.audioUri.length);
+    console.log('Audio URI prefix:', moment.audioUri.substring(0, 50));
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
@@ -88,23 +94,28 @@ export default function MomentDetailScreen() {
         } else {
           await Audio.setAudioModeAsync({
             playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
           });
+          console.log('Creating audio from URI...');
           const { sound } = await Audio.Sound.createAsync(
             { uri: moment.audioUri },
-            { shouldPlay: true }
+            { shouldPlay: true },
+            (status) => {
+              if (status.isLoaded) {
+                if (status.didJustFinish) {
+                  setIsPlaying(false);
+                }
+              }
+            }
           );
           soundRef.current = sound;
-          sound.setOnPlaybackStatusUpdate((status) => {
-            if (status.isLoaded && status.didJustFinish) {
-              setIsPlaying(false);
-            }
-          });
+          console.log('Audio sound created successfully');
         }
         setIsPlaying(true);
       }
     } catch (error) {
       console.error('Error playing audio:', error);
-      Alert.alert('Error', 'Could not play the audio recording');
+      Alert.alert('Error', 'Could not play the audio recording. The audio format may not be supported.');
     }
   };
 

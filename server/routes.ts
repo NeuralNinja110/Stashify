@@ -264,9 +264,12 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
   // Get all moments for a user
   app.get("/api/moments/user/:userId", async (req: Request, res: Response) => {
     try {
+      console.log('GET /api/moments/user/:userId - userId:', req.params.userId);
       const moments = await storage.getMoments(req.params.userId);
+      console.log('Found', moments.length, 'moments for user');
       res.json(moments);
     } catch (error) {
+      console.error('Error getting moments:', error);
       res.status(500).json({ error: "Failed to get moments" });
     }
   });
@@ -274,19 +277,34 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
   // Get a single moment by ID
   app.get("/api/moments/:id", async (req: Request, res: Response) => {
     try {
+      console.log('GET /api/moments/:id - ID:', req.params.id);
       const moment = await storage.getMoment(req.params.id);
-      if (!moment) return res.status(404).json({ error: "Moment not found" });
+      if (!moment) {
+        console.log('Moment not found for ID:', req.params.id);
+        return res.status(404).json({ error: "Moment not found" });
+      }
+      console.log('Moment found:', { id: moment.id, title: moment.title, hasAudio: !!moment.audioUri });
       res.json(moment);
     } catch (error) {
+      console.error('Error getting moment:', error);
       res.status(500).json({ error: "Failed to get moment" });
     }
   });
 
   app.post("/api/moments", async (req: Request, res: Response) => {
     try {
+      console.log('POST /api/moments - Body:', {
+        userId: req.body.userId,
+        title: req.body.title,
+        hasPhoto: !!req.body.photoUri,
+        hasAudio: !!req.body.audioUri,
+        audioUriLength: req.body.audioUri?.length || 0
+      });
       const moment = await storage.createMoment(req.body);
+      console.log('Moment created:', { id: moment.id, title: moment.title });
       res.json(moment);
     } catch (error) {
+      console.error('Error creating moment:', error);
       res.status(500).json({ error: "Failed to create moment" });
     }
   });
