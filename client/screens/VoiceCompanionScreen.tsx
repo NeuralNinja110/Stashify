@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
 import { useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
-import { readAsStringAsync, EncodingType } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -129,9 +129,10 @@ export default function VoiceCompanionScreen() {
       const uri = audioRecorder.uri;
       
       if (uri) {
-        // Read file as base64
-        const base64 = await readAsStringAsync(uri, {
-          encoding: EncodingType.Base64,
+        // Read file as base64 - use string 'base64' as fallback if EncodingType is undefined
+        const encodingType = FileSystem.EncodingType?.Base64 || 'base64';
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: encodingType as FileSystem.EncodingType,
         });
         
         // Determine mime type from URI
@@ -170,9 +171,12 @@ export default function VoiceCompanionScreen() {
           console.error('Transcription error:', error);
           Alert.alert('Error', 'Failed to process voice. Please try typing instead.');
         }
+      } else {
+        Alert.alert('Recording Error', 'No audio was recorded. Please try again.');
       }
     } catch (error) {
       console.error('Stop recording error:', error);
+      Alert.alert('Error', 'Recording failed. Please try typing instead.');
     } finally {
       setIsTranscribing(false);
     }
