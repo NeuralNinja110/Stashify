@@ -301,19 +301,17 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
         audioUriLength: req.body.audioUri?.length || 0
       });
       
-      // Auto-create user if they don't exist
+      // Auto-create user if they don't exist (using the same userId from client)
       const userId = req.body.userId;
       let user = await storage.getUser(userId);
       if (!user) {
-        console.log('Creating user:', userId);
-        user = await storage.createUser({
+        console.log('Creating user with ID:', userId);
+        user = await storage.createUserWithId(userId, {
           name: 'Guest User',
           pin: '0000',
           language: 'en',
           interests: []
         });
-        // Update the userId to use the newly created user's ID
-        req.body.userId = user.id;
       }
       
       const moment = await storage.createMoment(req.body);

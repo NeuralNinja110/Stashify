@@ -21,6 +21,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByPin(pin: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  createUserWithId(id: string, user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
   
   // Moments
@@ -89,6 +90,16 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(user: InsertUser): Promise<User> {
     const [newUser] = await db.insert(users).values({
+      ...user,
+      interests: user.interests || [],
+      language: user.language || 'en',
+    }).returning();
+    return newUser;
+  }
+
+  async createUserWithId(id: string, user: InsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values({
+      id,
       ...user,
       interests: user.interests || [],
       language: user.language || 'en',
