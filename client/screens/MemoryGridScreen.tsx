@@ -20,6 +20,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Button } from '@/components/Button';
+import { WinningAnimation } from '@/components/WinningAnimation';
 import { useTheme } from '@/hooks/useTheme';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
@@ -58,6 +59,7 @@ export default function MemoryGridScreen() {
   // Adaptive difficulty tracking
   const [correctStreak, setCorrectStreak] = useState(0);
   const [totalCorrect, setTotalCorrect] = useState(0);
+  const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [totalWrong, setTotalWrong] = useState(0);
   const [difficultyMultiplier, setDifficultyMultiplier] = useState(1.0);
 
@@ -176,6 +178,11 @@ export default function MemoryGridScreen() {
   const endGame = async () => {
     setGameState('gameOver');
     
+    // Show winning animation for levels 3+
+    if (level >= 3) {
+      setShowWinAnimation(true);
+    }
+    
     try {
       await apiRequest('POST', '/api/games/scores', {
         userId: user?.id || 'guest',
@@ -279,6 +286,7 @@ export default function MemoryGridScreen() {
     setTotalCorrect(0);
     setTotalWrong(0);
     setDifficultyMultiplier(1.0);
+    setShowWinAnimation(false);
     setGameState('ready');
   };
 
@@ -480,6 +488,13 @@ export default function MemoryGridScreen() {
           </View>
         </Animated.View>
       )}
+
+      <WinningAnimation
+        visible={showWinAnimation}
+        title="Great Job!"
+        subtitle={`Level ${level} reached with ${score} points!`}
+        onAnimationComplete={() => setShowWinAnimation(false)}
+      />
     </ThemedView>
   );
 }

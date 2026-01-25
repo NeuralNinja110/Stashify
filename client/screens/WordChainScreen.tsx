@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Button } from '@/components/Button';
+import { WinningAnimation } from '@/components/WinningAnimation';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
@@ -61,6 +62,7 @@ export default function WordChainScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [memorizeCountdown, setMemorizeCountdown] = useState(0);
+  const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [recalledWords, setRecalledWords] = useState<string[]>([]);
   const [shuffledRecallOptions, setShuffledRecallOptions] = useState<string[]>([]);
   
@@ -283,6 +285,14 @@ export default function WordChainScreen() {
       if (data.result === 'wrong') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setPhase('gameOver');
+        
+        // Check if this player is the winner (the other player failed)
+        const myId = user?.id || 'guest';
+        const isWinner = (data.gameState.player1?.id === myId && data.gameState.failedPlayer === 2) ||
+                         (data.gameState.player2?.id === myId && data.gameState.failedPlayer === 1);
+        if (isWinner) {
+          setShowWinAnimation(true);
+        }
         
         // Save score to leaderboard
         const myScore = data.gameState.player1?.id === user?.id 
@@ -645,6 +655,13 @@ export default function WordChainScreen() {
       {phase === 'memorizing' && renderMemorizing()}
       {phase === 'recalling' && renderRecalling()}
       {phase === 'gameOver' && renderGameOver()}
+
+      <WinningAnimation
+        visible={showWinAnimation}
+        title="Victory!"
+        subtitle={gameState?.winner ? `${gameState.winner} wins!` : 'Great game!'}
+        onAnimationComplete={() => setShowWinAnimation(false)}
+      />
     </ThemedView>
   );
 }

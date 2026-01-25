@@ -22,6 +22,7 @@ import Animated, {
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { WinningAnimation } from '@/components/WinningAnimation';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { getApiUrl, apiRequest } from '@/lib/query-client';
@@ -615,6 +616,7 @@ export default function FamilyQuizScreen() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [usedPairs, setUsedPairs] = useState<Set<string>>(new Set());
   
   const card1Scale = useSharedValue(1);
@@ -715,6 +717,11 @@ export default function FamilyQuizScreen() {
     if (questionNumber >= 10) {
       setGameOver(true);
       
+      // Show winning animation for 70%+ accuracy (7+ correct out of 10)
+      if (score >= 70) {
+        setShowWinAnimation(true);
+      }
+      
       try {
         await apiRequest('POST', '/api/games/scores', {
           userId: user?.id || 'guest',
@@ -744,6 +751,7 @@ export default function FamilyQuizScreen() {
     setSelectedAnswer(null);
     setShowResult(false);
     setGameOver(false);
+    setShowWinAnimation(false);
     setUsedPairs(new Set());
     resultOpacity.value = 0;
     
@@ -945,6 +953,13 @@ export default function FamilyQuizScreen() {
           </TouchableOpacity>
         </Animated.View>
       )}
+
+      <WinningAnimation
+        visible={showWinAnimation}
+        title="Family Expert!"
+        subtitle={`${score} points - You know your family well!`}
+        onAnimationComplete={() => setShowWinAnimation(false)}
+      />
     </SafeAreaView>
   );
 }

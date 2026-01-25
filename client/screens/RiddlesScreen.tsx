@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Button } from '@/components/Button';
+import { WinningAnimation } from '@/components/WinningAnimation';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
@@ -41,6 +42,7 @@ export default function RiddlesScreen() {
   const { user } = useAuth();
 
   const [gameState, setGameState] = useState<GameState>('ready');
+  const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [riddles, setRiddles] = useState<Riddle[]>([]);
   const [roundRiddles, setRoundRiddles] = useState<Riddle[]>([]);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
@@ -226,6 +228,11 @@ export default function RiddlesScreen() {
 
   const endGame = async () => {
     setGameState('gameOver');
+    
+    // Show winning animation for score 50+
+    if (score >= 50) {
+      setShowWinAnimation(true);
+    }
 
     const totalRiddlesSolved = (roundNumber - 1) * RIDDLES_PER_ROUND + currentRoundIndex + 1;
     try {
@@ -492,6 +499,13 @@ export default function RiddlesScreen() {
           </View>
         </Animated.View>
       )}
+
+      <WinningAnimation
+        visible={showWinAnimation}
+        title="Brilliant!"
+        subtitle={`You scored ${score} points!`}
+        onAnimationComplete={() => setShowWinAnimation(false)}
+      />
     </ThemedView>
   );
 }

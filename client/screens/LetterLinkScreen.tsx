@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Button } from '@/components/Button';
+import { WinningAnimation } from '@/components/WinningAnimation';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
@@ -59,6 +60,7 @@ export default function LetterLinkScreen() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showWinAnimation, setShowWinAnimation] = useState(false);
   
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cardScale = useSharedValue(1);
@@ -206,11 +208,17 @@ export default function LetterLinkScreen() {
       
       if (data.gameState.phase === 'gameOver') {
         setPhase('gameOver');
+        const isWinner = data.result === 'win';
         Haptics.notificationAsync(
-          data.result === 'win' 
+          isWinner 
             ? Haptics.NotificationFeedbackType.Success 
             : Haptics.NotificationFeedbackType.Error
         );
+        
+        // Show winning animation if player won
+        if (isWinner) {
+          setShowWinAnimation(true);
+        }
         
         // Save score to leaderboard
         const myScore = playerNum === 1 
@@ -557,6 +565,13 @@ export default function LetterLinkScreen() {
         {phase === 'playing' && renderPlaying()}
         {phase === 'gameOver' && renderGameOver()}
       </View>
+
+      <WinningAnimation
+        visible={showWinAnimation}
+        title="Champion!"
+        subtitle={gameState?.winner ? `${gameState.winner} wins!` : 'Great game!'}
+        onAnimationComplete={() => setShowWinAnimation(false)}
+      />
     </ThemedView>
   );
 }

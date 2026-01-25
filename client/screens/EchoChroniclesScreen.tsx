@@ -11,6 +11,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Button } from '@/components/Button';
 import { VoiceButton } from '@/components/VoiceButton';
+import { WinningAnimation } from '@/components/WinningAnimation';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
@@ -32,6 +33,7 @@ export default function EchoChroniclesScreen() {
   const { user } = useAuth();
 
   const [gameState, setGameState] = useState<GameState>('ready');
+  const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [prompts, setPrompts] = useState<StoryPrompt[]>([]);
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
   const [storyText, setStoryText] = useState('');
@@ -154,6 +156,11 @@ export default function EchoChroniclesScreen() {
 
   const endGame = async (finalScore: number) => {
     setGameState('gameOver');
+    
+    // Show winning animation for sharing 2+ stories
+    if (storiesShared >= 2) {
+      setShowWinAnimation(true);
+    }
 
     try {
       await apiRequest('POST', '/api/games/scores', {
@@ -370,6 +377,13 @@ export default function EchoChroniclesScreen() {
           </View>
         </Animated.View>
       )}
+
+      <WinningAnimation
+        visible={showWinAnimation}
+        title="Beautiful!"
+        subtitle={`You shared ${storiesShared} ${storiesShared === 1 ? 'story' : 'stories'}!`}
+        onAnimationComplete={() => setShowWinAnimation(false)}
+      />
     </ThemedView>
   );
 }
