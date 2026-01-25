@@ -261,12 +261,24 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
   });
 
   // ===== MOMENTS ROUTES =====
-  app.get("/api/moments/:userId", async (req: Request, res: Response) => {
+  // Get all moments for a user
+  app.get("/api/moments/user/:userId", async (req: Request, res: Response) => {
     try {
       const moments = await storage.getMoments(req.params.userId);
       res.json(moments);
     } catch (error) {
       res.status(500).json({ error: "Failed to get moments" });
+    }
+  });
+
+  // Get a single moment by ID
+  app.get("/api/moments/:id", async (req: Request, res: Response) => {
+    try {
+      const moment = await storage.getMoment(req.params.id);
+      if (!moment) return res.status(404).json({ error: "Moment not found" });
+      res.json(moment);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get moment" });
     }
   });
 

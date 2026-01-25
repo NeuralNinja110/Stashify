@@ -41,7 +41,7 @@ export default function MomentsScreen() {
   const queryClient = useQueryClient();
 
   const { data: moments = [], isLoading, refetch, isRefetching } = useQuery<Moment[]>({
-    queryKey: ['/api/moments', user?.id || 'guest'],
+    queryKey: ['/api/moments/user', user?.id || 'guest'],
     enabled: !!user,
   });
 

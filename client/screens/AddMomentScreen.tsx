@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, TextInput, Image, Pressable, Platform } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { StyleSheet, View, TextInput, Image, Pressable, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -8,6 +8,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ThemedText } from '@/components/ThemedText';
@@ -33,6 +35,9 @@ export default function AddMomentScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecording, setHasRecording] = useState(false);
+  const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [audioBase64, setAudioBase64] = useState<string | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   const createMomentMutation = useMutation({
     mutationFn: async (momentData: {
@@ -47,7 +52,7 @@ export default function AddMomentScreen() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/moments'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/moments/user'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.goBack();
     },
@@ -92,12 +97,49 @@ export default function AddMomentScreen() {
     }
   };
 
-  const handleVoicePress = () => {
+  const handleVoicePress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsRecording(!isRecording);
     
     if (isRecording) {
-      setHasRecording(true);
+      // Stop recording
+      try {
+        if (recordingRef.current) {
+          await recordingRef.current.stopAndUnloadAsync();
+          const uri = recordingRef.current.getURI();
+          if (uri) {
+            setAudioUri(uri);
+            // Convert audio to base64 for storage
+            const base64 = await FileSystem.readAsStringAsync(uri, {
+              encoding: 'base64',
+            });
+            setAudioBase64(`data:audio/m4a;base64,${base64}`);
+            setHasRecording(true);
+          }
+          recordingRef.current = null;
+        }
+      } catch (error) {
+        console.error('Error stopping recording:', error);
+        Alert.alert('Error', 'Failed to stop recording');
+      }
+      setIsRecording(false);
+    } else {
+      // Start recording
+      try {
+        await Audio.requestPermissionsAsync();
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+        
+        const { recording } = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+        recordingRef.current = recording;
+        setIsRecording(true);
+      } catch (error) {
+        console.error('Error starting recording:', error);
+        Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
+      }
     }
   };
 
@@ -109,7 +151,7 @@ export default function AddMomentScreen() {
       title: title.trim(),
       description: description.trim() || undefined,
       photoUri: photoUri || undefined,
-      audioUri: hasRecording ? 'audio-recording-placeholder' : undefined,
+      audioUri: audioBase64 || undefined,
       tags: [],
     });
   };
