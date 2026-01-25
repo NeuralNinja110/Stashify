@@ -21,6 +21,12 @@ import { useAuth } from '@/context/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { apiRequest } from '@/lib/query-client';
 
+declare global {
+  interface Window {
+    webkitAudioContext: typeof AudioContext;
+  }
+}
+
 export default function AddMomentScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -38,6 +44,8 @@ export default function AddMomentScreen() {
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [audioBase64, setAudioBase64] = useState<string | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const webRecorderRef = useRef<MediaRecorder | null>(null);
+  const webChunksRef = useRef<Blob[]>([]);
 
   const createMomentMutation = useMutation({
     mutationFn: async (momentData: {
