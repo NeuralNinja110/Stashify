@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, ScrollView, Pressable, Image, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useAudioPlayer, AudioSource } from 'expo-audio';
+import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { format, isValid, parseISO } from 'date-fns';
 
@@ -39,11 +39,16 @@ export default function MomentDetailScreen() {
   const [moment, setMoment] = useState<Moment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
-  
-  const player = useAudioPlayer(moment?.audioUri ? { uri: moment.audioUri } : null);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     fetchMoment();
+    
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
   }, [route.params.momentId]);
 
   const fetchMoment = async () => {
@@ -56,7 +61,10 @@ export default function MomentDetailScreen() {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('Fetched moment:', data);
         setMoment(data);
+      } else {
+        console.error('Failed to fetch moment, status:', response.status);
       }
     } catch (error) {
       console.error('Failed to fetch moment:', error);
@@ -66,16 +74,32 @@ export default function MomentDetailScreen() {
   };
 
   const handlePlayAudio = async () => {
-    if (!moment?.audioUri || !player) return;
+    if (!moment?.audioUri) return;
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
     try {
-      if (isPlaying) {
-        player.pause();
+      if (isPlaying && soundRef.current) {
+        await soundRef.current.pauseAsync();
         setIsPlaying(false);
       } else {
-        player.play();
+        if (soundRef.current) {
+          await soundRef.current.playAsync();
+        } else {
+          await Audio.setAudioModeAsync({
+            playsInSilentModeIOS: true,
+          });
+          const { sound } = await Audio.Sound.createAsync(
+            { uri: moment.audioUri },
+            { shouldPlay: true }
+          );
+          soundRef.current = sound;
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded && status.didJustFinish) {
+              setIsPlaying(false);
+            }
+          });
+        }
         setIsPlaying(true);
       }
     } catch (error) {
