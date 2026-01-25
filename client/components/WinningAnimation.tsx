@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions, Modal } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -267,26 +267,32 @@ export const WinningAnimation: React.FC<WinningAnimationProps> = ({
   if (!visible) return null;
 
   return (
-    <View style={styles.overlay}>
-      <Animated.View style={[styles.container, containerStyle]}>
-        {confetti.map((piece) => (
-          <ConfettiPieceComponent key={piece.id} piece={piece} />
-        ))}
-        
-        <View style={styles.centerContent}>
-          <Animated.View style={[styles.glowCircle, { backgroundColor: theme.primary + '30' }, glowStyle]} />
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+    >
+      <View style={styles.overlay}>
+        <Animated.View style={[styles.container, containerStyle]}>
+          {confetti.map((piece) => (
+            <ConfettiPieceComponent key={piece.id} piece={piece} />
+          ))}
           
-          <View style={styles.starsContainer}>
-            {stars.map((star) => (
-              <StarComponent key={star.id} star={star} theme={theme} />
-            ))}
-          </View>
-          
-          <Animated.View style={[styles.trophyContainer, trophyStyle]}>
-            <ThemedText style={styles.trophy}>🏆</ThemedText>
-          </Animated.View>
-          
-          <Animated.View style={titleStyle}>
+          <View style={styles.centerContent}>
+            <Animated.View style={[styles.glowCircle, { backgroundColor: theme.primary + '30' }, glowStyle]} />
+            
+            <View style={styles.starsContainer}>
+              {stars.map((star) => (
+                <StarComponent key={star.id} star={star} theme={theme} />
+              ))}
+            </View>
+            
+            <Animated.View style={[styles.trophyContainer, trophyStyle]}>
+              <ThemedText style={styles.trophy}>🏆</ThemedText>
+            </Animated.View>
+            
+            <Animated.View style={titleStyle}>
             <ThemedText style={[styles.title, { color: theme.primary }]}>
               {title}
             </ThemedText>
@@ -299,19 +305,19 @@ export const WinningAnimation: React.FC<WinningAnimationProps> = ({
               </ThemedText>
             </Animated.View>
           )}
-        </View>
-      </Animated.View>
-    </View>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 };
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    zIndex: 1000,
   },
   container: {
     width: SCREEN_WIDTH * 0.9,
