@@ -15,6 +15,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 import { useAuth } from '@/context/AuthContext';
+import { getApiUrl } from '@/lib/query-client';
 
 const gameGridIcon = require('../../assets/images/game-grid-icon.png');
 const gameWordchainIcon = require('../../assets/images/game-wordchain-icon.png');
@@ -156,15 +157,14 @@ export default function GamesScreen() {
   const { user } = useAuth();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
-  const API_BASE = process.env.EXPO_PUBLIC_DOMAIN || '';
-
   useEffect(() => {
     fetchLeaderboard();
   }, []);
 
   const fetchLeaderboard = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/games/leaderboard?limit=3`);
+      const url = new URL('/api/games/leaderboard?limit=3', getApiUrl()).toString();
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         const entries: LeaderboardEntry[] = data.map((item: any, idx: number) => ({
