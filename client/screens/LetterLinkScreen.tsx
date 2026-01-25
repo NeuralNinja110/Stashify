@@ -454,71 +454,74 @@ export default function LetterLinkScreen() {
     const didWin = gameState?.winner === (playerNum === 1 ? gameState?.player1?.name : gameState?.player2?.name);
     
     return (
-      <Animated.View entering={FadeInDown.duration(500)} style={styles.gameOverContainer}>
-        <View style={[
-          styles.iconContainer, 
-          { backgroundColor: didWin ? theme.success + '20' : theme.error + '20' }
-        ]}>
-          <Ionicons 
-            name={didWin ? "trophy" : "sad"} 
-            size={64} 
-            color={didWin ? theme.success : theme.error} 
-          />
-        </View>
-        
-        <ThemedText type="h1" style={[styles.resultTitle, { color: didWin ? theme.success : theme.error }]}>
-          {didWin ? 'You Won!' : 'You Lost!'}
-        </ThemedText>
-        
-        {gameState?.reason && (
-          <ThemedText type="body" style={[styles.reasonText, { color: theme.textSecondary }]}>
-            {gameState.reason}
+      <ScrollView 
+        contentContainerStyle={styles.gameOverScroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View entering={FadeInDown.duration(500)} style={styles.gameOverContent}>
+          <View style={[
+            styles.iconContainer, 
+            { backgroundColor: didWin ? theme.success + '20' : theme.error + '20' }
+          ]}>
+            <Ionicons 
+              name={didWin ? "trophy" : "sad"} 
+              size={64} 
+              color={didWin ? theme.success : theme.error} 
+            />
+          </View>
+          
+          <ThemedText type="h1" style={[styles.resultTitle, { color: didWin ? theme.success : theme.error }]}>
+            {didWin ? 'You Won!' : 'You Lost!'}
           </ThemedText>
-        )}
-        
-        <View style={styles.finalScores}>
-          <View style={styles.scoreCard}>
-            <ThemedText type="caption">{gameState?.player1?.name}</ThemedText>
-            <ThemedText type="h2" style={{ color: theme.primary }}>{gameState?.player1?.score || 0}</ThemedText>
-          </View>
-          <View style={styles.scoreCard}>
-            <ThemedText type="caption">{gameState?.player2?.name}</ThemedText>
-            <ThemedText type="h2" style={{ color: theme.primary }}>{gameState?.player2?.score || 0}</ThemedText>
-          </View>
-        </View>
-
-        {gameState?.usedWords && gameState.usedWords.length > 0 && (
-          <View style={styles.wordsPlayedSection}>
-            <ThemedText type="caption" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-              All words played ({gameState.usedWords.length}):
+          
+          {gameState?.reason && (
+            <ThemedText type="body" style={[styles.reasonText, { color: theme.textSecondary }]}>
+              {gameState.reason}
             </ThemedText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.usedWordsRow}>
+          )}
+          
+          <View style={styles.finalScores}>
+            <View style={styles.scoreCard}>
+              <ThemedText type="caption">{gameState?.player1?.name}</ThemedText>
+              <ThemedText type="h2" style={{ color: theme.primary }}>{gameState?.player1?.score || 0}</ThemedText>
+            </View>
+            <View style={styles.scoreCard}>
+              <ThemedText type="caption">{gameState?.player2?.name}</ThemedText>
+              <ThemedText type="h2" style={{ color: theme.primary }}>{gameState?.player2?.score || 0}</ThemedText>
+            </View>
+          </View>
+
+          {gameState?.usedWords && gameState.usedWords.length > 0 && (
+            <View style={styles.wordsPlayedSection}>
+              <ThemedText type="caption" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+                All words played ({gameState.usedWords.length}):
+              </ThemedText>
+              <View style={styles.wordsWrap}>
                 {gameState.usedWords.map((word, idx) => (
                   <View key={idx} style={[styles.usedWordChip, { backgroundColor: theme.backgroundDefault }]}>
                     <ThemedText type="caption">{word}</ThemedText>
                   </View>
                 ))}
               </View>
-            </ScrollView>
-          </View>
-        )}
+            </View>
+          )}
 
-        <View style={styles.gameOverButtons}>
-          <Button
-            onPress={resetGame}
-            style={styles.primaryButton}
-          >
-            Play Again
-          </Button>
-          <Button
-            onPress={leaveGame}
-            variant="secondary"
-          >
-            Back to Games
-          </Button>
-        </View>
-      </Animated.View>
+          <View style={styles.gameOverButtons}>
+            <Button
+              onPress={resetGame}
+              style={styles.primaryButton}
+            >
+              Play Again
+            </Button>
+            <Button
+              onPress={leaveGame}
+              variant="secondary"
+            >
+              Back to Games
+            </Button>
+          </View>
+        </Animated.View>
+      </ScrollView>
     );
   };
 
@@ -726,11 +729,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing['3xl'],
   },
-  gameOverContainer: {
-    flex: 1,
+  gameOverScroll: {
+    flexGrow: 1,
+    paddingVertical: Spacing.xl,
+  },
+  gameOverContent: {
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
   resultTitle: {
     textAlign: 'center',
@@ -742,19 +747,27 @@ const styles = StyleSheet.create({
   finalScores: {
     flexDirection: 'row',
     gap: Spacing.xl,
-    marginVertical: Spacing.lg,
+    marginVertical: Spacing.md,
   },
   scoreCard: {
     alignItems: 'center',
     gap: Spacing.xs,
   },
   wordsPlayedSection: {
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
+    width: '100%',
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  wordsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    justifyContent: 'center',
   },
   gameOverButtons: {
     width: '100%',
     gap: Spacing.md,
-    marginTop: Spacing.lg,
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.md,
   },
 });
