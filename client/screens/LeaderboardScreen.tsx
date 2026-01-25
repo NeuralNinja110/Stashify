@@ -26,7 +26,7 @@ interface LeaderboardEntry {
 const gameTypes = [
   { id: 'memory-grid', name: 'Memory Grid' },
   { id: 'word-chain', name: 'Word Chain' },
-  { id: 'echo-chronicles', name: 'Echo Chronicles' },
+  { id: 'letter-link', name: 'Letter Link' },
   { id: 'riddles', name: 'Riddles' },
 ];
 
