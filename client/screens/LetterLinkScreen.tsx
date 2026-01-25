@@ -393,18 +393,9 @@ export default function LetterLinkScreen() {
 
       {gameState?.usedWords && gameState.usedWords.length > 0 && (
         <View style={styles.usedWordsSection}>
-          <ThemedText type="caption" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-            Used Words ({gameState.usedWords.length})
+          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+            Words played: {gameState.usedWords.length}
           </ThemedText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.usedWordsRow}>
-              {gameState.usedWords.map((word, idx) => (
-                <View key={idx} style={[styles.usedWordChip, { backgroundColor: theme.backgroundDefault }]}>
-                  <ThemedText type="caption">{word}</ThemedText>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
         </View>
       )}
 
@@ -492,17 +483,8 @@ export default function LetterLinkScreen() {
         {gameState?.usedWords && gameState.usedWords.length > 0 && (
           <View style={styles.wordsPlayedSection}>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Words Played: {gameState.usedWords.length}
+              Total words played: {gameState.usedWords.length}
             </ThemedText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: Spacing.sm }}>
-              <View style={styles.usedWordsRow}>
-                {gameState.usedWords.map((word, idx) => (
-                  <View key={idx} style={[styles.usedWordChip, { backgroundColor: theme.backgroundDefault }]}>
-                    <ThemedText type="caption">{word}</ThemedText>
-                  </View>
-                ))}
-              </View>
-            </ScrollView>
           </View>
         )}
 

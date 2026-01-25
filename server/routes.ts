@@ -1034,8 +1034,24 @@ Only return the JSON array.`;
     const available = letterLinkWordPool.filter(
       w => w.toLowerCase().startsWith(letter.toLowerCase()) && !usedWords.includes(w.toLowerCase())
     );
-    const shuffled = [...available].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, count);
+    const usedStartingWith = usedWords.filter(
+      w => w.toLowerCase().startsWith(letter.toLowerCase())
+    );
+    
+    const shuffledAvailable = [...available].sort(() => Math.random() - 0.5);
+    const shuffledUsed = [...usedStartingWith].sort(() => Math.random() - 0.5);
+    
+    let options: string[] = [];
+    
+    if (usedStartingWith.length > 0 && Math.random() < 0.4) {
+      const trapWord = shuffledUsed[0];
+      options.push(trapWord);
+      options.push(...shuffledAvailable.slice(0, count - 1));
+    } else {
+      options = shuffledAvailable.slice(0, count);
+    }
+    
+    return options.sort(() => Math.random() - 0.5);
   }
 
   // Create a Letter Link room
