@@ -1003,14 +1003,31 @@ Only return the JSON array.`;
   // Word game where players pick words based on starting/ending letters
   
   const letterLinkWordPool = [
-    'apple', 'elephant', 'tiger', 'rabbit', 'table', 'eagle', 'energy', 'yellow',
-    'water', 'rainbow', 'winter', 'river', 'red', 'door', 'rose', 'emerald',
-    'dolphin', 'nature', 'evening', 'garden', 'night', 'train', 'noon', 'nice',
-    'earth', 'heart', 'tower', 'road', 'dream', 'milk', 'kangaroo', 'orange',
-    'egg', 'green', 'noon', 'nest', 'turtle', 'emperor', 'rain', 'noon',
-    'love', 'elephant', 'tree', 'escape', 'echo', 'ocean', 'north', 'home',
-    'elephant', 'temple', 'energy', 'yarn', 'night', 'tower', 'radio', 'open',
-    'dragon', 'nerve', 'evening', 'great', 'travel', 'lime', 'extra', 'anchor'
+    'apple', 'anchor', 'amazing', 'animal', 'arrow',
+    'banana', 'basket', 'bridge', 'butter', 'beach',
+    'candle', 'castle', 'cherry', 'cloud', 'cream',
+    'dolphin', 'dragon', 'dream', 'dance', 'door',
+    'eagle', 'earth', 'elephant', 'energy', 'emerald', 'echo', 'escape', 'evening', 'emperor', 'extra',
+    'flower', 'forest', 'friend', 'fruit', 'fire',
+    'garden', 'great', 'green', 'guitar', 'gold',
+    'happy', 'heart', 'home', 'honey', 'hope',
+    'island', 'ice', 'iron', 'imagine',
+    'jungle', 'jewel', 'journey', 'joy',
+    'kangaroo', 'kite', 'king', 'kitchen',
+    'lemon', 'love', 'lime', 'lamp', 'lion',
+    'mango', 'milk', 'moon', 'mountain', 'music',
+    'nature', 'nest', 'night', 'north', 'nerve', 'nice', 'noon',
+    'ocean', 'orange', 'open', 'olive',
+    'purple', 'peace', 'planet', 'paper', 'piano', 'pearl', 'picnic', 'pillow',
+    'queen', 'quiet', 'quilt',
+    'rainbow', 'rabbit', 'rain', 'river', 'road', 'rose', 'radio', 'red',
+    'sunset', 'star', 'silver', 'smile', 'storm', 'sweet',
+    'tiger', 'table', 'train', 'tree', 'tower', 'temple', 'turtle', 'travel',
+    'umbrella', 'unique', 'under',
+    'village', 'valley', 'violet', 'voice',
+    'water', 'winter', 'wonder', 'wind', 'wave',
+    'yellow', 'yarn', 'young',
+    'zebra', 'zero', 'zone'
   ];
 
   function getWordsStartingWith(letter: string, usedWords: string[], count: number = 4): string[] {
