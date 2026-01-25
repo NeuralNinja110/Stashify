@@ -16,6 +16,9 @@ import { Button } from '@/components/Button';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/context/AuthContext';
 import { useSettings } from '@/context/SettingsContext';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 import { Spacing, BorderRadius } from '@/constants/theme';
 
 interface SettingRowProps {
@@ -60,10 +63,16 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const { fontSize, setFontSize, language, setLanguage } = useSettings();
   const { t } = useTranslation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const handleLogout = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     await logout();
+  };
+
+  const handleCognitiveReport = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate('CognitiveReport');
   };
 
   const handleLanguageToggle = () => {
@@ -163,7 +172,7 @@ export default function ProfileScreen() {
           <SettingRow
             icon="file-text"
             label={t('profile.reports')}
-            onPress={() => {}}
+            onPress={handleCognitiveReport}
           />
 
           <SettingRow

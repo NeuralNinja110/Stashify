@@ -73,6 +73,7 @@ export interface IStorage {
   // Cognitive Reports
   getCognitiveReports(userId: string): Promise<CognitiveReport[]>;
   generateCognitiveReport(userId: string): Promise<CognitiveReport>;
+  saveCognitiveReport(userId: string, reportData: any): Promise<CognitiveReport>;
 }
 
 // DatabaseStorage using Drizzle ORM with PostgreSQL
@@ -449,6 +450,20 @@ export class DatabaseStorage implements IStorage {
         languageGames: languageScores.length,
         attentionGames: attentionScores.length,
       },
+    }).returning();
+
+    return report;
+  }
+
+  async saveCognitiveReport(userId: string, reportData: any): Promise<CognitiveReport> {
+    const [report] = await db.insert(cognitiveReports).values({
+      userId,
+      overallScore: reportData.overallScore,
+      memoryScore: reportData.memoryScore,
+      attentionScore: reportData.attentionScore,
+      languageScore: reportData.languageScore,
+      recommendations: reportData.recommendations || [],
+      gameStats: reportData.gameStats || {},
     }).returning();
 
     return report;

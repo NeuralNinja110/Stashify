@@ -547,6 +547,163 @@ Respond as ${companionName} (be dynamic, engaging, and context-aware):`;
     }
   });
 
+  // Cognitive Report with AI Analysis
+  app.post("/api/cognitive-report/:userId", async (req: Request, res: Response) => {
+    try {
+      const userId = req.params.userId;
+      
+      // Get all game scores for this user
+      const gameScores = await storage.getGameScores(userId);
+      
+      // Calculate stats per game type
+      const gameTypeStats: Record<string, { scores: number[], accuracies: number[], dates: Date[] }> = {};
+      
+      for (const score of gameScores) {
+        if (!gameTypeStats[score.gameType]) {
+          gameTypeStats[score.gameType] = { scores: [], accuracies: [], dates: [] };
+        }
+        gameTypeStats[score.gameType].scores.push(score.score);
+        if (score.accuracy) {
+          gameTypeStats[score.gameType].accuracies.push(score.accuracy);
+        }
+        if (score.createdAt) {
+          gameTypeStats[score.gameType].dates.push(new Date(score.createdAt));
+        }
+      }
+      
+      // Calculate detailed game stats
+      const gameStats = Object.entries(gameTypeStats).map(([gameType, data]) => {
+        const avgScore = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
+        const highScore = Math.max(...data.scores);
+        const avgAccuracy = data.accuracies.length > 0 
+          ? data.accuracies.reduce((a, b) => a + b, 0) / data.accuracies.length 
+          : 0;
+        
+        // Determine trend based on recent vs older scores
+        let trend: 'improving' | 'stable' | 'declining' = 'stable';
+        if (data.scores.length >= 4) {
+          const midpoint = Math.floor(data.scores.length / 2);
+          const olderAvg = data.scores.slice(0, midpoint).reduce((a, b) => a + b, 0) / midpoint;
+          const recentAvg = data.scores.slice(midpoint).reduce((a, b) => a + b, 0) / (data.scores.length - midpoint);
+          if (recentAvg > olderAvg * 1.1) trend = 'improving';
+          else if (recentAvg < olderAvg * 0.9) trend = 'declining';
+        }
+        
+        return {
+          gameType,
+          gamesPlayed: data.scores.length,
+          averageScore: Math.round(avgScore),
+          highestScore: highScore,
+          averageAccuracy: Math.round(avgAccuracy * 100),
+          trend
+        };
+      });
+      
+      // Calculate domain scores based on game types
+      const memoryGames = ['memory-grid', 'echo-chronicles'];
+      const attentionGames = ['riddles', 'letter-link'];
+      const languageGames = ['word-chain', 'family-quiz'];
+      
+      const calculateDomainScore = (gameTypes: string[]) => {
+        const relevantStats = gameStats.filter(s => gameTypes.includes(s.gameType));
+        if (relevantStats.length === 0) return 50; // Default if no games played
+        const avgScore = relevantStats.reduce((sum, s) => sum + s.averageScore, 0) / relevantStats.length;
+        return Math.min(100, Math.max(0, Math.round(avgScore)));
+      };
+      
+      const memoryScore = calculateDomainScore(memoryGames);
+      const attentionScore = calculateDomainScore(attentionGames);
+      const languageScore = calculateDomainScore(languageGames);
+      const overallScore = Math.round((memoryScore + attentionScore + languageScore) / 3);
+      
+      // Population comparison (simulated average data for elderly population)
+      const populationAverages = {
+        memory: 55,
+        attention: 52,
+        language: 58,
+        overall: 55
+      };
+      
+      const percentile = Math.min(99, Math.max(1, Math.round(50 + (overallScore - populationAverages.overall) * 1.5)));
+      const comparisonText = overallScore > populationAverages.overall 
+        ? `You scored ${overallScore - populationAverages.overall} points above the average for your age group.`
+        : overallScore < populationAverages.overall
+        ? `You scored ${populationAverages.overall - overallScore} points below the average. Regular practice can help improve your scores!`
+        : `You scored exactly at the average for your age group.`;
+      
+      // Generate AI analysis
+      let aiAnalysis = "Based on your game performance, you're showing good cognitive engagement.";
+      let recommendations = [
+        "Continue playing brain games daily for 15-20 minutes",
+        "Try new game types to challenge different cognitive areas",
+        "Take breaks between gaming sessions to avoid fatigue"
+      ];
+      
+      try {
+        const analysisPrompt = `You are a cognitive health analyst for elderly users. Analyze this game performance data and provide personalized insights:
+
+User's Cognitive Scores:
+- Overall Score: ${overallScore}/100
+- Memory Score: ${memoryScore}/100 (from games: ${memoryGames.join(', ')})
+- Attention Score: ${attentionScore}/100 (from games: ${attentionGames.join(', ')})
+- Language Score: ${languageScore}/100 (from games: ${languageGames.join(', ')})
+
+Games Played:
+${gameStats.map(g => `- ${g.gameType}: ${g.gamesPlayed} games, avg score ${g.averageScore}, trend: ${g.trend}`).join('\n')}
+
+Population Percentile: ${percentile}th
+
+Provide a brief, encouraging analysis (2-3 sentences) suitable for elderly users. Be supportive and positive. Focus on strengths and gentle suggestions for improvement.
+
+Then provide 4 specific, actionable recommendations for improving cognitive health.
+
+Format your response as JSON:
+{
+  "analysis": "your analysis here",
+  "recommendations": ["rec1", "rec2", "rec3", "rec4"]
+}`;
+
+        const aiResponse = await callOpenRouter([{ role: "user", content: analysisPrompt }]);
+        const jsonMatch = aiResponse?.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.analysis) aiAnalysis = parsed.analysis;
+          if (parsed.recommendations && Array.isArray(parsed.recommendations)) {
+            recommendations = parsed.recommendations;
+          }
+        }
+      } catch (aiError) {
+        console.error('AI analysis error:', aiError);
+      }
+      
+      const report = {
+        overallScore,
+        memoryScore,
+        attentionScore,
+        languageScore,
+        gameStats,
+        populationComparison: {
+          percentile,
+          comparison: comparisonText
+        },
+        recommendations,
+        aiAnalysis
+      };
+      
+      // Save report to database
+      try {
+        await storage.saveCognitiveReport(userId, report);
+      } catch (saveError) {
+        console.error('Failed to save report:', saveError);
+      }
+      
+      res.json(report);
+    } catch (error) {
+      console.error('Error generating cognitive report:', error);
+      res.status(500).json({ error: "Failed to generate cognitive report" });
+    }
+  });
+
   // ===== GAME DATA ROUTES =====
   
   // Get riddles from AI based on user interests

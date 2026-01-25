@@ -18,6 +18,7 @@ import AddFamilyMemberScreen from '@/screens/AddFamilyMemberScreen';
 import FamilyMemberDetailScreen from '@/screens/FamilyMemberDetailScreen';
 import AddReminderScreen from '@/screens/AddReminderScreen';
 import MomentDetailScreen from '@/screens/MomentDetailScreen';
+import CognitiveReportScreen from '@/screens/CognitiveReportScreen';
 import { useScreenOptions } from '@/hooks/useScreenOptions';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -35,6 +36,7 @@ export type RootStackParamList = {
   FamilyQuiz: undefined;
   AddMoment: undefined;
   MomentDetail: { momentId: string };
+  CognitiveReport: undefined;
   AddFamilyMember: undefined;
   FamilyMemberDetail: { memberId: string };
   AddReminder: undefined;
@@ -145,6 +147,13 @@ export default function RootStackNavigator() {
             component={MomentDetailScreen}
             options={{
               headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="CognitiveReport"
+            component={CognitiveReportScreen}
+            options={{
+              title: 'Cognitive Report',
             }}
           />
           <Stack.Screen
