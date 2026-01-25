@@ -263,11 +263,12 @@ export default function LetterLinkScreen() {
 
       <View style={styles.buttonGroup}>
         <Button
-          title="Create Room"
           onPress={createRoom}
-          loading={isLoading}
+          disabled={isLoading}
           style={styles.primaryButton}
-        />
+        >
+          {isLoading ? 'Creating...' : 'Create Room'}
+        </Button>
         
         <View style={styles.divider}>
           <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
@@ -293,12 +294,12 @@ export default function LetterLinkScreen() {
             maxLength={6}
           />
           <Button
-            title="Join"
             onPress={joinRoom}
-            loading={isLoading}
-            disabled={joinCode.length < 4}
+            disabled={isLoading || joinCode.length < 4}
             variant="secondary"
-          />
+          >
+            {isLoading ? 'Joining...' : 'Join'}
+          </Button>
         </View>
       </View>
 
@@ -329,11 +330,12 @@ export default function LetterLinkScreen() {
       </View>
 
       <Button
-        title="Cancel"
         onPress={leaveGame}
         variant="secondary"
         style={styles.cancelButton}
-      />
+      >
+        Cancel
+      </Button>
     </Animated.View>
   );
 
@@ -506,15 +508,17 @@ export default function LetterLinkScreen() {
 
         <View style={styles.gameOverButtons}>
           <Button
-            title="Play Again"
             onPress={resetGame}
             style={styles.primaryButton}
-          />
+          >
+            Play Again
+          </Button>
           <Button
-            title="Back to Games"
             onPress={leaveGame}
             variant="secondary"
-          />
+          >
+            Back to Games
+          </Button>
         </View>
       </Animated.View>
     );
