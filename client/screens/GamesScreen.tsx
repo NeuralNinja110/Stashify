@@ -1,18 +1,20 @@
-import React from 'react';
-import { StyleSheet, View, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, ScrollView, Pressable, Image, ImageSourcePropType } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
-import { GameCard } from '@/components/GameCard';
 import { useTheme } from '@/hooks/useTheme';
-import { Spacing } from '@/constants/theme';
+import { Spacing, BorderRadius } from '@/constants/theme';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
+import { useAuth } from '@/context/AuthContext';
 
 const gameGridIcon = require('../../assets/images/game-grid-icon.png');
 const gameWordchainIcon = require('../../assets/images/game-wordchain-icon.png');
@@ -79,6 +81,71 @@ const GAMES: GameInfo[] = [
   },
 ];
 
+interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  score: number;
+  isCurrentUser?: boolean;
+}
+
+interface GridGameCardProps {
+  title: string;
+  icon: ImageSourcePropType;
+  difficulty: 'easy' | 'medium' | 'hard';
+  onPress: () => void;
+}
+
+function GridGameCard({ title, icon, difficulty, onPress }: GridGameCardProps) {
+  const { theme } = useTheme();
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.95, { damping: 15, stiffness: 150 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 150 });
+  };
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
+
+  const getDifficultyColor = () => {
+    switch (difficulty) {
+      case 'easy': return theme.success;
+      case 'medium': return theme.warning;
+      case 'hard': return theme.error;
+    }
+  };
+
+  const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+  return (
+    <AnimatedPressable
+      onPress={handlePress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[
+        styles.gridCard,
+        { backgroundColor: theme.backgroundDefault },
+        animatedStyle,
+      ]}
+    >
+      <Image source={icon} style={styles.gridIcon} resizeMode="contain" />
+      <ThemedText type="body" style={styles.gridTitle} numberOfLines={2}>
+        {title}
+      </ThemedText>
+      <View style={[styles.difficultyDot, { backgroundColor: getDifficultyColor() }]} />
+    </AnimatedPressable>
+  );
+}
+
 export default function GamesScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
@@ -86,9 +153,39 @@ export default function GamesScreen() {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { user } = useAuth();
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+
+  const API_BASE = process.env.EXPO_PUBLIC_DOMAIN || '';
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, []);
+
+  const fetchLeaderboard = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/games/leaderboard?limit=3`);
+      if (res.ok) {
+        const data = await res.json();
+        const entries: LeaderboardEntry[] = data.map((item: any, idx: number) => ({
+          rank: idx + 1,
+          name: item.userName || 'Player',
+          score: item.totalScore || 0,
+          isCurrentUser: user?.id === item.userId,
+        }));
+        setLeaderboard(entries);
+      }
+    } catch (e) {
+      console.error('Failed to fetch leaderboard:', e);
+    }
+  };
 
   const handleGamePress = (game: GameInfo) => {
     navigation.navigate(game.screen as any);
+  };
+
+  const handleViewLeaderboard = () => {
+    navigation.navigate('Leaderboard' as any);
   };
 
   return (
@@ -97,34 +194,83 @@ export default function GamesScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: headerHeight + Spacing.xl,
+            paddingTop: headerHeight + Spacing.md,
             paddingBottom: tabBarHeight + Spacing['3xl'],
           },
         ]}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Leaderboard Section */}
         <Animated.View entering={FadeInDown.delay(100).duration(400)}>
-          <ThemedText type="h2" style={styles.title}>
+          <Pressable 
+            onPress={handleViewLeaderboard}
+            style={[styles.leaderboardCard, { backgroundColor: theme.primary + '15' }]}
+          >
+            <View style={styles.leaderboardHeader}>
+              <View style={styles.leaderboardTitleRow}>
+                <Ionicons name="trophy" size={24} color={theme.primary} />
+                <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>
+                  Leaderboard
+                </ThemedText>
+              </View>
+              <ThemedText type="caption" style={{ color: theme.primary }}>
+                View All
+              </ThemedText>
+            </View>
+            
+            {leaderboard.length > 0 ? (
+              <View style={styles.leaderboardList}>
+                {leaderboard.map((entry) => (
+                  <View 
+                    key={entry.rank} 
+                    style={[
+                      styles.leaderboardRow,
+                      entry.isCurrentUser && { backgroundColor: theme.primary + '20' }
+                    ]}
+                  >
+                    <View style={styles.rankBadge}>
+                      <ThemedText type="caption" style={{ fontWeight: '700' }}>
+                        #{entry.rank}
+                      </ThemedText>
+                    </View>
+                    <ThemedText type="body" style={styles.leaderboardName} numberOfLines={1}>
+                      {entry.name}
+                    </ThemedText>
+                    <ThemedText type="body" style={{ color: theme.primary, fontWeight: '600' }}>
+                      {entry.score}
+                    </ThemedText>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: 'center', padding: Spacing.md }}>
+                Play games to appear on the leaderboard!
+              </ThemedText>
+            )}
+          </Pressable>
+        </Animated.View>
+
+        {/* Games Title */}
+        <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.sectionHeader}>
+          <ThemedText type="h3">
             {t('gamesTab')}
           </ThemedText>
-          <ThemedText
-            type="body"
-            style={[styles.subtitle, { color: theme.textSecondary }]}
-          >
-            Choose a game to train your memory
+          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+            Train your memory
           </ThemedText>
         </Animated.View>
 
-        <View style={styles.gamesContainer}>
+        {/* Games Grid */}
+        <View style={styles.gamesGrid}>
           {GAMES.map((game, index) => (
             <Animated.View
               key={game.id}
-              entering={FadeInDown.delay(150 + index * 100).duration(400)}
+              entering={FadeInDown.delay(250 + index * 50).duration(400)}
+              style={styles.gridCardWrapper}
             >
-              <GameCard
+              <GridGameCard
                 title={t(game.titleKey)}
-                description={t(game.descKey)}
                 icon={game.icon}
                 difficulty={game.difficulty}
                 onPress={() => handleGamePress(game)}
@@ -144,11 +290,72 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.lg,
   },
-  title: {
+  leaderboardCard: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  leaderboardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  leaderboardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  leaderboardList: {
+    gap: Spacing.sm,
+  },
+  leaderboardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  rankBadge: {
+    width: 32,
+    alignItems: 'center',
+  },
+  leaderboardName: {
+    flex: 1,
+    marginLeft: Spacing.sm,
+  },
+  sectionHeader: {
+    marginBottom: Spacing.lg,
+  },
+  gamesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  gridCardWrapper: {
+    width: '48%',
+    marginBottom: Spacing.md,
+  },
+  gridCard: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    minHeight: 140,
+  },
+  gridIcon: {
+    width: 48,
+    height: 48,
     marginBottom: Spacing.sm,
   },
-  subtitle: {
-    marginBottom: Spacing['2xl'],
+  gridTitle: {
+    textAlign: 'center',
+    fontWeight: '600',
   },
-  gamesContainer: {},
+  difficultyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+  },
 });
